@@ -58,13 +58,18 @@
 // 7. Use context menu items to copy keyframe duration, values, and easing info
 
 // Import modules
+<<<<<<< HEAD
 import { DEFAULT_LIBRARIES, DEFAULT_EASING, GRAPH_CONFIG, DEFAULT_SPEED_EASING, GRAPH_COLORS } from './modules/constants.js';
+=======
+import { DEFAULT_PRESETS, DEFAULT_EASING, GRAPH_CONFIG, DEFAULT_SPEED_EASING } from './modules/constants.js';
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 import { checkForUpdate } from './modules/updateChecker.js';
 import { getCompositionFrameRate } from './modules/conversions.js';
 import { drawCurve, drawSpeedCurve } from './modules/graphRenderer.js';
 import { setupValueGraphHandlers, setupSpeedGraphHandlers } from './modules/mouseHandlers.js';
 import { getEasingFromKeyframes, applyEasingToKeyframes, fixHoldPaths, setClampHoldsEnabled, copyKeyframeDuration, copyKeyframeValues, copyAllKeyframeInfo } from './modules/keyframeOps.js';
 import { 
+<<<<<<< HEAD
     savePresetToLibrary, savePresetToNewLibrary, loadLibrariesFromPreferences, saveLibrariesToPreferences,
     saveApplyOnDragSetting, loadApplyOnDragSetting,
     saveClampIdenticalSetting, loadClampIdenticalSetting,
@@ -72,6 +77,14 @@ import {
     copyCubicBezierToClipboard,
     exportLibraryToFlowFile, importLibraryFromFlowFile,
     reorderPresetInLibrary, movePresetBetweenLibraries, reorderLibrary
+=======
+    savePreset, renamePreset, deletePreset, deleteAllPresets,
+    exportPresets, importPresets, savePresetsToPreferences, loadPresetsFromPreferences,
+    saveApplyOnDragSetting, loadApplyOnDragSetting,
+    saveClampIdenticalSetting, loadClampIdenticalSetting,
+    saveLastSelectedTab, loadLastSelectedTab,
+    populatePresetDropdown, copyCubicBezierToClipboard
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 } from './modules/presetManager.js';
 import { initializeAssets, getAssetPath } from './modules/embeddedAssets.js';
 
@@ -93,6 +106,7 @@ checkForUpdate(GITHUB_REPO, scriptName, currentVersion);
 // STATE
 // ============================================================================
 
+<<<<<<< HEAD
 // Copy presets from defaults so user changes can be persisted independently.
 var libraries = {};
 
@@ -100,6 +114,10 @@ var libraries = {};
 // written to preferences because they do not change preset data.
 var collapsedLibraries = {};
 var showingSpeed = false;
+=======
+// Copy presets from defaults (so we can modify it)
+var presets = Object.assign({}, DEFAULT_PRESETS);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // Current easing values
 var currentEasing = Object.assign({}, DEFAULT_EASING);
@@ -107,6 +125,7 @@ var currentEasing = Object.assign({}, DEFAULT_EASING);
 // Speed graph state
 var speedEasing = Object.assign({}, DEFAULT_SPEED_EASING);
 
+<<<<<<< HEAD
 // Helper to calculate dynamic padding based on graph dimensions
 function calculateDynamicPadding(w, h) {
     var minDim = Math.min(w, h);
@@ -117,12 +136,22 @@ function calculateDynamicPadding(w, h) {
 var graphWidth = GRAPH_CONFIG.width;
 var graphHeight = GRAPH_CONFIG.height;
 var graphPadding = calculateDynamicPadding(graphWidth, graphHeight);
+=======
+// Graph dimensions (mutable for resize)
+var graphWidth = GRAPH_CONFIG.width;
+var graphHeight = GRAPH_CONFIG.height;
+var graphPadding = GRAPH_CONFIG.padding;
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 var handleRadius = GRAPH_CONFIG.handleRadius;
 
 // Speed graph dimensions
 var speedGraphWidth = GRAPH_CONFIG.width;
 var speedGraphHeight = GRAPH_CONFIG.height;
+<<<<<<< HEAD
 var speedGraphPadding = calculateDynamicPadding(speedGraphWidth, speedGraphHeight);
+=======
+var speedGraphPadding = GRAPH_CONFIG.padding;
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 var speedHandleRadius = GRAPH_CONFIG.handleRadius;
 
 // Drag state for value graph
@@ -131,11 +160,14 @@ var dragHandle = null;
 var dragStartPosition = null;
 var dragStartEasing = null;
 var axisConstraint = null;
+<<<<<<< HEAD
 var wasShiftHeld = false;
 var lockedAngle = null;
 var lockedLength = null;
 var lastAxisConstraint = null;
 var shiftEngageCoords = null;
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // Drag state for speed graph
 var speedDragging = false;
@@ -146,6 +178,10 @@ var applyOnDragEnabled = false;
 var clampHoldsEnabled = true;
 
 // Flags
+<<<<<<< HEAD
+=======
+var isUpdatingFromPreset = false;
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 var isUpdatingTextInput = false;
 var isInitializingTab = false;
 
@@ -160,10 +196,18 @@ graphCanvas.setSize(graphWidth, graphHeight);
 var speedGraphCanvas = new ui.Draw();
 speedGraphCanvas.setSize(speedGraphWidth, speedGraphHeight);
 
+<<<<<<< HEAD
 var applyButton = new ui.Button("Apply");
 applyButton.setToolTip("Apply easing");
 applyButton.setFixedWidth(45);
 applyButton.setFixedHeight(22);
+=======
+// Main action buttons
+var applyButton = new ui.ImageButton(getAssetPath("icon-apply"));
+applyButton.setToolTip("Apply easing");
+applyButton.setImageSize(16,16);
+applyButton.setSize(24, 24);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 var getButton = new ui.ImageButton(getAssetPath("icon-get"));
 getButton.setToolTip("Get easing from keyframes");
@@ -171,6 +215,7 @@ getButton.setImageSize(16,16);
 getButton.setSize(24, 24);
 
 // Context menu button for main actions
+<<<<<<< HEAD
 var mainContextButton = new ui.Button("≡");
 mainContextButton.setFixedWidth(20);
 
@@ -323,6 +368,24 @@ function applyPresetByNameOrFilter(text) {
         showPresetSuggestions(text, false);
     }
 }
+=======
+var mainContextButton = new ui.Button("⋯");
+mainContextButton.setSize(18, 18);
+
+// Text input for cubic bezier values
+var bezierInput = new ui.LineEdit();
+bezierInput.setText("0.25, 0.1, 0.25, 1.0");
+
+// Preset dropdown
+var presetList = new ui.DropDown();
+
+// Context menu button for preset actions
+var presetContextButton = new ui.ImageButton(getAssetPath("icon-settings"));
+presetContextButton.setDrawStroke(false);
+presetContextButton.setToolTip("Settings");
+presetContextButton.setImageSize(16,16);
+presetContextButton.setSize(18, 18);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -342,6 +405,7 @@ var sharedState = {
     set dragStartEasing(v) { dragStartEasing = v; },
     get axisConstraint() { return axisConstraint; },
     set axisConstraint(v) { axisConstraint = v; },
+<<<<<<< HEAD
     get wasShiftHeld() { return wasShiftHeld; },
     set wasShiftHeld(v) { wasShiftHeld = v; },
     get lockedAngle() { return lockedAngle; },
@@ -352,6 +416,8 @@ var sharedState = {
     set lastAxisConstraint(v) { lastAxisConstraint = v; },
     get shiftEngageCoords() { return shiftEngageCoords; },
     set shiftEngageCoords(v) { shiftEngageCoords = v; },
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     get speedDragging() { return speedDragging; },
     set speedDragging(v) { speedDragging = v; },
     get speedDragHandle() { return speedDragHandle; },
@@ -377,6 +443,7 @@ function getSpeedGraphConfig() {
     };
 }
 
+<<<<<<< HEAD
 function syncPresetSearchInputText() {
     if (!presetSearchInput) return;
     var foundName = "";
@@ -553,6 +620,8 @@ function setupLabelScrub(container, coordinateIndex) {
     };
 }
 
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 // Update text input with current easing values
 function updateTextInput() {
     var x1 = (currentEasing.x1 !== undefined) ? currentEasing.x1 : 0.25;
@@ -560,6 +629,7 @@ function updateTextInput() {
     var x2 = (currentEasing.x2 !== undefined) ? currentEasing.x2 : 0.25;
     var y2 = (currentEasing.y2 !== undefined) ? currentEasing.y2 : 1.0;
     
+<<<<<<< HEAD
     isUpdatingTextInput = true;
     x1Input.setValue(x1);
     y1Input.setValue(y1);
@@ -568,10 +638,21 @@ function updateTextInput() {
     isUpdatingTextInput = false;
     
     syncPresetSearchInputText();
+=======
+    var text = x1.toFixed(3) + ", " + 
+               y1.toFixed(3) + ", " + 
+               x2.toFixed(3) + ", " + 
+               y2.toFixed(3);
+    
+    isUpdatingTextInput = true;
+    bezierInput.setText(text);
+    isUpdatingTextInput = false;
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 }
 
 // Parse text input and update curve
 function updateFromTextInput() {
+<<<<<<< HEAD
     resetPresetDropdown();
     var vX1 = x1Input.getValue();
     var vY1 = y1Input.getValue();
@@ -582,6 +663,25 @@ function updateFromTextInput() {
     if (!isNaN(vX2)) currentEasing.x2 = vX2;
     if (!isNaN(vY2)) currentEasing.y2 = vY2;
     redrawGraphs();
+=======
+    try {
+        var text = bezierInput.getText();
+        var values = text.split(',').map(function(v) { return parseFloat(v.trim()); });
+        
+        if (values.length === 4 && values.every(function(v) { return !isNaN(v); })) {
+            currentEasing.x1 = values[0];
+            currentEasing.y1 = values[1];
+            currentEasing.x2 = values[2];
+            currentEasing.y2 = values[3];
+            
+            redrawGraphs();
+        } else {
+            console.log("Error: Invalid cubic bezier values");
+        }
+    } catch (e) {
+        console.log("Error: Failed to parse cubic bezier values");
+    }
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 }
 
 // Redraw both graphs
@@ -606,12 +706,20 @@ setupValueGraphHandlers({
     state: sharedState,
     getConfig: getGraphConfig,
     onUpdate: function() {
+<<<<<<< HEAD
         resetPresetDropdown();
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
         updateTextInput();
         redrawGraphs();
     },
     onDragEnd: function() {
+<<<<<<< HEAD
                 if (applyOnDragEnabled) {
+=======
+        presetList.setText("Select a preset...");
+        if (applyOnDragEnabled) {
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
             applyEasingToKeyframes(currentEasing);
         }
         saveTabPreference();
@@ -623,7 +731,10 @@ setupSpeedGraphHandlers({
     state: sharedState,
     getConfig: getSpeedGraphConfig,
     onUpdate: function() {
+<<<<<<< HEAD
         resetPresetDropdown();
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
         updateTextInput();
         redrawGraphs();
         if (applyOnDragEnabled) {
@@ -631,7 +742,12 @@ setupSpeedGraphHandlers({
         }
     },
     onDragEnd: function() {
+<<<<<<< HEAD
                 saveTabPreference();
+=======
+        presetList.setText("Select a preset...");
+        saveTabPreference();
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     }
 });
 
@@ -642,6 +758,7 @@ setupSpeedGraphHandlers({
 function showPresetContextMenu() {
     ui.clearContextMenu();
 
+<<<<<<< HEAD
     ui.addMenuItem({
         name: "Save to New Library...",
         onMouseRelease: function() {
@@ -673,10 +790,77 @@ function showPresetContextMenu() {
             importLibraryFromFlowFile(libraries, function() {
                 saveLibrariesToPreferences(libraries);
                 buildPresetsTab();
+=======
+    var separatorItem = { name: "" };
+    
+    ui.addMenuItem({
+        name: "Save Preset...",
+        onMouseRelease: function() {
+            savePreset(presets, currentEasing, function() {
+                populatePresetDropdown(presetList, presets);
+                savePresetsToPreferences(presets);
+            });
+        }
+    });
+    
+    ui.addMenuItem(separatorItem);
+    
+    ui.addMenuItem({
+        name: "Rename Preset",
+        onMouseRelease: function() {
+            var selectedPreset = presetList.getText();
+            var newName = renamePreset(presets, selectedPreset, function() {
+                populatePresetDropdown(presetList, presets);
+                savePresetsToPreferences(presets);
+            });
+            if (newName) {
+                presetList.setText(newName);
+            }
+        }
+    });
+    
+    ui.addMenuItem({
+        name: "Delete Preset",
+        onMouseRelease: function() {
+            var selectedPreset = presetList.getText();
+            deletePreset(presets, selectedPreset, function() {
+                populatePresetDropdown(presetList, presets);
+                savePresetsToPreferences(presets);
+            });
+        }
+    });
+    
+    ui.addMenuItem(separatorItem);
+
+    ui.addMenuItem({
+        name: "Import Presets",
+        onMouseRelease: function() {
+            importPresets(presets, function() {
+                savePresetsToPreferences(presets);
+                populatePresetDropdown(presetList, presets);
+            });
+        }
+    });
+    
+    ui.addMenuItem({
+        name: "Copy All Presets",
+        onMouseRelease: function() {
+            exportPresets(presets);
+        }
+    });
+    
+    ui.addMenuItem({
+        name: "Delete All Presets",
+        onMouseRelease: function() {
+            deleteAllPresets(presets, function() {
+                populatePresetDropdown(presetList, presets);
+                savePresetsToPreferences(presets);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
             });
         }
     });
 
+<<<<<<< HEAD
     ui.addMenuItem({ name: "" });
     
     ui.addMenuItem({
@@ -700,6 +884,11 @@ function showPresetContextMenu() {
     ui.addMenuItem({ name: "" });
 
     ui.addMenuItem({
+=======
+    ui.addMenuItem(separatorItem);
+    
+    ui.addMenuItem({
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
         name: "Copy Current Curve to Clipboard",
         onMouseRelease: function() {
             copyCubicBezierToClipboard(currentEasing);
@@ -727,7 +916,11 @@ function showPresetContextMenu() {
         }
     });
 
+<<<<<<< HEAD
     ui.addMenuItem({ name: "" });
+=======
+    ui.addMenuItem(separatorItem);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     
     ui.addMenuItem({
         name: "Apply when dragging handles" + (applyOnDragEnabled ? " ✓" : ""),
@@ -746,7 +939,11 @@ function showPresetContextMenu() {
         }
     });
 
+<<<<<<< HEAD
     ui.addMenuItem({ name: "" });
+=======
+    ui.addMenuItem(separatorItem);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
     ui.addMenuItem({
         name: "Clamp motion paths between holds",
@@ -755,7 +952,11 @@ function showPresetContextMenu() {
         }
     });
 
+<<<<<<< HEAD
     ui.addMenuItem({ name: "" });
+=======
+    ui.addMenuItem(separatorItem);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
     ui.addMenuItem({
         name: "Easey Version " + currentVersion,
@@ -797,6 +998,7 @@ mainContextButton.onClick = function() {
     showPresetContextMenu();
 };
 
+<<<<<<< HEAD
 
 
 wireCoordinateInput(x1Input, 0);
@@ -814,6 +1016,42 @@ presetSearchInput.onValueCommitted = function() {
 
 presetSearchBtn.onClick = function() {
     showPresetSuggestions(presetSearchInput.getText(), true);
+=======
+presetContextButton.onClick = function() {
+    showPresetContextMenu();
+};
+
+bezierInput.onValueChanged = function() {
+    if (isUpdatingTextInput) return;
+    
+    updateFromTextInput();
+    
+    if (!isUpdatingFromPreset) {
+        presetList.setText("Select a preset...");
+    }
+};
+
+presetList.onValueChanged = function() {
+    var selectedPreset = presetList.getText();
+    
+    if (selectedPreset === "Select a preset...") return;
+    
+    if (selectedPreset && presets[selectedPreset]) {
+        isUpdatingFromPreset = true;
+        var preset = presets[selectedPreset];
+        
+        currentEasing.x1 = preset.x1;
+        currentEasing.y1 = preset.y1;
+        currentEasing.x2 = preset.x2;
+        currentEasing.y2 = preset.y2;
+        
+        updateTextInput();
+        redrawGraphs();
+        isUpdatingFromPreset = false;
+        
+        saveTabPreference();
+    }
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 };
 
 // ============================================================================
@@ -821,7 +1059,11 @@ presetSearchBtn.onClick = function() {
 // ============================================================================
 
 // Load saved presets
+<<<<<<< HEAD
 loadLibrariesFromPreferences(libraries, DEFAULT_LIBRARIES);
+=======
+loadPresetsFromPreferences(presets);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // Load apply on drag setting
 applyOnDragEnabled = loadApplyOnDragSetting();
@@ -830,6 +1072,11 @@ applyOnDragEnabled = loadApplyOnDragSetting();
 clampHoldsEnabled = loadClampIdenticalSetting();
 setClampHoldsEnabled(clampHoldsEnabled);
 
+<<<<<<< HEAD
+=======
+// Populate preset dropdown
+populatePresetDropdown(presetList, presets);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // ============================================================================
 // UI LAYOUT
@@ -840,6 +1087,7 @@ var mainLayout = new ui.VLayout();
 mainLayout.setSpaceBetween(0);
 mainLayout.setMargins(3, 3, 3, 3);
 
+<<<<<<< HEAD
 // Button row
 var buttonRow = new ui.HLayout();
 buttonRow.add(getButton);
@@ -1786,16 +2034,66 @@ mainLayout.add(buttonRow);
 
 ui.add(mainLayout);
 ui.setBackgroundColor(GRAPH_COLORS.canvas);
+=======
+// Preset row
+var presetRow = new ui.HLayout();
+presetRow.add(presetList);
+presetRow.add(presetContextButton);
+presetRow.setMargins(0, 4, 0, 0);
+
+// Create TabView
+var tabView = new ui.TabView();
+
+// VALUE TAB
+var valueTabLayout = new ui.VLayout();
+valueTabLayout.setSpaceBetween(0);
+valueTabLayout.setMargins(0, 0, 0, 0);
+valueTabLayout.add(graphCanvas);
+valueTabLayout.addStretch();
+
+// SPEED TAB
+var speedTabLayout = new ui.VLayout();
+speedTabLayout.setSpaceBetween(0);
+speedTabLayout.setMargins(0, 0, 0, 0);
+speedTabLayout.add(speedGraphCanvas);
+speedTabLayout.addStretch();
+
+// Add tabs (Speed first to match After Effects workflow)
+tabView.add("Speed", speedTabLayout);
+tabView.add("Value", valueTabLayout);
+
+// Add to main layout
+mainLayout.add(tabView);
+
+// Button row
+var buttonRow = new ui.HLayout();
+buttonRow.add(getButton);
+buttonRow.add(bezierInput);
+buttonRow.add(applyButton);
+buttonRow.setSpaceBetween(4);
+buttonRow.setMargins(0, 4, 0, 0);
+mainLayout.add(buttonRow);
+mainLayout.add(presetRow);
+mainLayout.addStretch();
+
+// Add to UI
+ui.add(mainLayout);
+ui.setBackgroundColor(ui.getThemeColor("Base"));
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // Initialize display
 updateTextInput();
 redrawGraphs();
+<<<<<<< HEAD
 buildPresetsTab();
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // Tab change handler
 tabView.onTabChanged = function() {
     redrawGraphs();
     saveTabPreference();
+<<<<<<< HEAD
     if (tabView.currentTab() === "Presets") {
         buildPresetsTab();
     }
@@ -1804,14 +2102,26 @@ tabView.onTabChanged = function() {
 // Window size
 ui.setMinimumWidth(320);
 ui.setMinimumHeight(265);
+=======
+};
+
+// Window size
+ui.setMinimumWidth(graphWidth);
+ui.setMinimumHeight(graphHeight + 60);
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 // Resize handler
 ui.onResize = function() {
     var newWidth = ui.size().width;
     var newHeight = ui.size().height;
     
+<<<<<<< HEAD
     var controlsHeight = 115;
     var margin = 16;
+=======
+    var controlsHeight = 90;
+    var margin = 10;
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     
     var newGraphWidth = Math.max(150, newWidth - margin);
     var newGraphHeight = Math.max(150, newHeight - controlsHeight);
@@ -1821,13 +2131,17 @@ ui.onResize = function() {
     speedGraphWidth = newGraphWidth;
     speedGraphHeight = newGraphHeight;
     
+<<<<<<< HEAD
     graphPadding = calculateDynamicPadding(graphWidth, graphHeight);
     speedGraphPadding = calculateDynamicPadding(speedGraphWidth, speedGraphHeight);
     
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     graphCanvas.setSize(graphWidth, graphHeight);
     speedGraphCanvas.setSize(speedGraphWidth, speedGraphHeight);
     
     redrawGraphs();
+<<<<<<< HEAD
 
     if (dragState && dragState.libraryItems) {
         dragState.libraryItems.forEach(function(entry) {
@@ -1836,6 +2150,8 @@ ui.onResize = function() {
             }
         });
     }
+=======
+>>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 };
 
 // Show window
