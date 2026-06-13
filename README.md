@@ -1,0 +1,27 @@
+# Easey
+### Open source speed and value graph for Cavalry
+
+<p align="left" style="margin-top:0;margin-bottom:0;">
+  <a href="https://github.com/sammularczyk/Easey/releases/latest/download/Easey.jsc">
+    <img width="186" height="58px" alt="quiver_download" src="https://github.com/user-attachments/assets/9295a646-c7ba-4649-b069-2e78204dc1ce" />
+  </a>
+</p>
+
+<img width="358" height="484" alt="Screenshot 2025-11-05 at 21 37 31" src="https://github.com/user-attachments/assets/0ef835e8-c318-4e14-a0e1-29826cfc97f2" />
+
+Adds a speed graph, simple value graph and allows cubic-bezier notation for easing between two keyframes. Makes easing easy. 
+
+You can also save presets, and copy duration and easing values to pass to developers.
+
+If you're looking for a more polished value graph editor that supports Magic Easing, check out [Curves at Scenery.io](https://scenery.io/scripts/curves-42xvUYqCpvY).
+
+> [!TIP]
+> Hold CTRL/CMD while dragging handles to mirror them in the Speed graph.
+
+---
+
+### Credits
+
+This script is owned and made possible by the [Canva Creative Team](https://canvacreative.team/motion). Check out more scripts, including Quiver, at their website.
+
+Created with the assistance of Cursor and [scenery-io/create-script](https://github.com/scenery-io/create-script).
