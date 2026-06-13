@@ -2,7 +2,6 @@
 // Functions for drawing the value curve and speed curve on canvas elements
 
 import { cubicBezierToSpeed, sampleVelocityCurve } from './conversions.js';
-<<<<<<< HEAD
 import { GRAPH_COLORS } from './constants.js';
 import {
     getPlotBounds,
@@ -55,8 +54,6 @@ function drawGraphBackground(canvas, config, bounds) {
         canvas.addPath(gridPath.toObject(), gridPaint);
     }
 }
-=======
->>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
 
 /**
  * Draw the value (bezier) curve on the canvas
@@ -67,7 +64,6 @@ function drawGraphBackground(canvas, config, bounds) {
 export function drawCurve(canvas, currentEasing, config) {
     // Clear all paths
     canvas.clearPaths();
-<<<<<<< HEAD
 
     var bounds = getPlotBounds(config);
     var startX = bounds.startX;
@@ -78,45 +74,6 @@ export function drawCurve(canvas, currentEasing, config) {
     drawGraphBackground(canvas, config, bounds);
 
     var curvePath = new cavalry.Path();
-=======
-    
-    var width = config.width;
-    var height = config.height;
-    var padding = config.padding;
-    
-    // Set background color
-    canvas.setBackgroundColor(ui.getThemeColor("AlternateBase"));
-    
-    // Create grid paths
-    var gridPath = new cavalry.Path();
-    
-    // Vertical grid lines - extend to fill entire padded area
-    for (var i = 0; i <= 10; i++) {
-        var x = padding + (i * (width - 2 * padding) / 10);
-        gridPath.moveTo(x, 0);
-        gridPath.lineTo(x, height);
-    }
-    
-    // Horizontal grid lines - extend to fill entire padded area
-    for (var i = 0; i <= 10; i++) {
-        var y = padding + (i * (height - 2 * padding) / 10);
-        gridPath.moveTo(0, y);
-        gridPath.lineTo(width, y);
-    }
-    
-    // Add grid to canvas
-    var gridPaint = {"color": "#3a3a3a", "stroke": true, "strokeWidth": 1};
-    if (gridPath && gridPath.toObject) {
-        canvas.addPath(gridPath.toObject(), gridPaint);
-    }
-    
-    // Create bezier curve path
-    var curvePath = new cavalry.Path();
-    var startX = padding;
-    var startY = height - padding;
-    var endX = width - padding;
-    var endY = padding;
->>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     
     // Ensure currentEasing has valid values
     var x1 = (currentEasing.x1 !== undefined) ? currentEasing.x1 : 0.25;
@@ -192,7 +149,6 @@ export function drawSpeedCurve(canvas, currentEasing, speedEasing, config) {
     speedEasing.inSpeedY = speed.inSpeedY;
     
     canvas.clearPaths();
-<<<<<<< HEAD
 
     var bounds = getPlotBounds(config);
     var startX = bounds.startX;
@@ -201,37 +157,6 @@ export function drawSpeedCurve(canvas, currentEasing, speedEasing, config) {
     var endY = bounds.endY;
 
     drawGraphBackground(canvas, config, bounds);
-=======
-    
-    var width = config.width;
-    var height = config.height;
-    var padding = config.padding;
-    
-    canvas.setBackgroundColor(ui.getThemeColor("AlternateBase"));
-    
-    // Draw grid
-    var gridPath = new cavalry.Path();
-    for (var i = 0; i <= 10; i++) {
-        var x = padding + (i * (width - 2 * padding) / 10);
-        gridPath.moveTo(x, 0);
-        gridPath.lineTo(x, height);
-    }
-    for (var i = 0; i <= 10; i++) {
-        var y = padding + (i * (height - 2 * padding) / 10);
-        gridPath.moveTo(0, y);
-        gridPath.lineTo(width, y);
-    }
-    var gridPaint = {"color": "#3a3a3a", "stroke": true, "strokeWidth": 1};
-    if (gridPath && gridPath.toObject) {
-        canvas.addPath(gridPath.toObject(), gridPaint);
-    }
-    
-    // Graph coordinates
-    var startX = padding;
-    var startY = height - padding;
-    var endX = width - padding;
-    var endY = padding;
->>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
     var midX = startX + (endX - startX) / 2;
     
     // Get current cubic-bezier values

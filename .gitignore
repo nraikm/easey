@@ -23,8 +23,4 @@ dist/
 npm-debug.log*
 
 # Packages
-<<<<<<< HEAD
-*.tgznode_modules/
-=======
 *.tgz
->>>>>>> 05a5c47a8feb0c13810bc081a16c656827824326
