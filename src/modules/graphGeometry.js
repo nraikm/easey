@@ -3,6 +3,14 @@
 export var GRID_DIVISIONS = 10;
 export var GRID_OVERFLOW_CELLS = 1;
 
+export function getGridDivisions() {
+  return GRID_DIVISIONS;
+}
+
+export function setGridDivisions(val) {
+  GRID_DIVISIONS = val;
+}
+
 /**
  * Square plot area centered inside the canvas padding.
  */
@@ -26,7 +34,8 @@ export function getPlotBounds(config) {
 }
 
 export function getGridCellSize(bounds) {
-  return bounds.plotSize / GRID_DIVISIONS;
+  var divisions = GRID_DIVISIONS === 100 ? 10 : GRID_DIVISIONS;
+  return bounds.plotSize / divisions;
 }
 
 export function getGridOverflowBounds(bounds, overflowCells) {
@@ -47,6 +56,7 @@ export function getGridOverflowBounds(bounds, overflowCells) {
 export function snapToGrid(value) {
   return Math.round(value * GRID_DIVISIONS) / GRID_DIVISIONS;
 }
+
 
 export function pixelToNormalized(x, y, bounds) {
   return {

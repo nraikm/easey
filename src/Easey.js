@@ -109,6 +109,8 @@ import {
   loadPresetsOrientationLeftTopSetting,
   saveDisableScrollbarSetting,
   loadDisableScrollbarSetting,
+  saveGraphResolutionSetting,
+  loadGraphResolutionSetting,
   copyCubicBezierToClipboard,
   copyEasingNumbersToClipboard,
   exportCurrentCurveToJson,
@@ -123,6 +125,7 @@ import {
   deletePresetFromLibrary,
   renameLibrary,
 } from "./modules/presetManager.js";
+import { setGridDivisions } from "./modules/graphGeometry.js";
 import { initializeAssets, getAssetPath } from "./modules/embeddedAssets.js";
 
 // Initialize embedded assets (writes icons to temp folder if needed)
@@ -221,6 +224,7 @@ var presetsOrientationLeftTop = false;
 var disableScrollbarEnabled = false;
 var splitGraphWidth = 250;
 var splitGraphHeight = 180;
+var graphResolution = 0.1;
 var appliedGraphWidth = 250;
 var appliedGraphHeight = 180;
 
@@ -1969,6 +1973,29 @@ function showPresetContextMenu() {
     },
   });
 
+  var resolutionText = "Graph Resolution: 0.1";
+  if (graphResolution === 0.05) {
+    resolutionText = "Graph Resolution: 0.05";
+  } else if (graphResolution === 0.01) {
+    resolutionText = "Graph Resolution: 0.01";
+  }
+
+  ui.addMenuItem({
+    name: resolutionText,
+    onMouseRelease: function () {
+      if (graphResolution === 0.1) {
+        graphResolution = 0.05;
+      } else if (graphResolution === 0.05) {
+        graphResolution = 0.01;
+      } else {
+        graphResolution = 0.1;
+      }
+      saveGraphResolutionSetting(graphResolution);
+      setGridDivisions(Math.round(1 / graphResolution));
+      redrawGraphs();
+    },
+  });
+
   ui.addMenuItem({ name: "" });
 
   ui.addMenuItem({
@@ -2272,6 +2299,10 @@ lastCurveBehavior = loadLastCurveBehaviorSetting();
 if (lastCurveBehavior !== 0) {
   lastEasing = Object.assign({}, currentEasing);
 }
+
+// Load graph resolution setting
+graphResolution = loadGraphResolutionSetting();
+setGridDivisions(Math.round(1 / graphResolution));
 
 // ============================================================================
 // UI LAYOUT

@@ -10,7 +10,7 @@ import {
   drawSquareGrid,
   drawSquareGridByCellSize,
   addFillRect,
-  GRID_DIVISIONS,
+  getGridDivisions,
 } from "./graphGeometry.js";
 
 function addFilledPath(canvas, path, color) {
@@ -60,7 +60,9 @@ function drawGraphBackground(canvas, config, bounds) {
   }
 
   var gridPath = new cavalry.Path();
-  drawSquareGrid(gridPath, bounds, GRID_DIVISIONS);
+  var divisions = getGridDivisions();
+  var visualDivisions = divisions === 100 ? 10 : divisions;
+  drawSquareGrid(gridPath, bounds, visualDivisions);
   var gridPaint = {
     color: GRAPH_COLORS.gridMain,
     stroke: true,

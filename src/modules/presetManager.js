@@ -851,3 +851,20 @@ export function renameLibrary(libraries, oldLibraryName, onRename) {
     console.log("Error renaming library:", e.message);
   }
 }
+
+export function saveGraphResolutionSetting(resolution) {
+  savePreference(
+    "easey_graphResolution",
+    resolution,
+    "Could not save graph resolution setting",
+  );
+}
+
+export function loadGraphResolutionSetting() {
+  return loadPreference(
+    "easey_graphResolution",
+    0.1,
+    "Could not load graph resolution setting",
+  );
+}
+

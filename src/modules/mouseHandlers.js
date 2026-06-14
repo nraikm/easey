@@ -7,7 +7,7 @@ import {
   snapToGrid,
   pixelToNormalized,
   getHandleOrigin,
-  GRID_DIVISIONS,
+  getGridDivisions,
 } from "./graphGeometry.js";
 
 function getEasingCoords(state, dragHandle) {
@@ -67,7 +67,7 @@ function detectAxisFromMovement(startCoords, currentCoords) {
   var startY = snapToGrid(startCoords.y);
   var currentX = snapToGrid(currentCoords.x);
   var currentY = snapToGrid(currentCoords.y);
-  var step = 1 / GRID_DIVISIONS;
+  var step = 1 / getGridDivisions();
 
   var dx = Math.abs(currentX - startX);
   var dy = Math.abs(currentY - startY);
