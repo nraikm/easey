@@ -152,30 +152,16 @@ var collapsedLibraries = {};
 var showingSpeed = false;
 var activePastePanel = "editor";
 
-var isContextMenuOpen = false;
-var originalShowContextMenu = ui.showContextMenu;
-ui.showContextMenu = function () {
-  isContextMenuOpen = true;
-  if (originalShowContextMenu) {
-    originalShowContextMenu.apply(ui, arguments);
-  }
-};
-
-var originalAddMenuItem = ui.addMenuItem;
-ui.addMenuItem = function (item) {
-  if (item && item.onMouseRelease) {
-    var originalOnMouseRelease = item.onMouseRelease;
-    item.onMouseRelease = function () {
-      isContextMenuOpen = false;
-      originalOnMouseRelease.apply(this, arguments);
-    };
-  }
-  if (originalAddMenuItem) {
-    originalAddMenuItem.call(ui, item);
-  }
-};
-
-// Current easing values (x1, y1, x2, y2) representing the cubic bezier curve
+function deferShowContextMenu() {
+  var timer = new api.Timer({
+    onTimeout: function () {
+      ui.showContextMenu();
+    },
+  });
+  timer.setInterval(15);
+  timer.setRepeating(false);
+  timer.start();
+}
 var currentEasing = Object.assign({}, DEFAULT_EASING);
 
 // Speed graph state
@@ -289,6 +275,7 @@ function updateLastEasingForAtomicChange(prevEasing) {
 
 // Flags
 var isUpdatingTextInput = false;
+
 var isInitializingTab = false;
 var lastPresetClick = {
   libName: "",
@@ -333,11 +320,11 @@ mainContextButton.setSize(20, 20);
 // Cubic bezier coordinate inputs
 // Coordinate layout metrics
 var COORDINATE_LABEL_WIDTH = 14;
-var COORDINATE_VALUE_WIDTH = 30; // Set to 30 so that 3 decimal places fit nicely without clipping or excessive empty space
+var COORDINATE_VALUE_WIDTH = (typeof ui.NumericField !== "undefined") ? 42 : 30; // Set to 42 for NumericField to fit arrows and numbers, 30 for LineEdit
 var COORDINATE_BORDER_WIDTH = 1;
 // Spacing and margins: left margin 2px, right margin 2px, spacing between label and input 2px, border 1px on each side.
 var COORDINATE_CONTAINER_WIDTH =
-  COORDINATE_LABEL_WIDTH + COORDINATE_VALUE_WIDTH + 8; // 14 + 30 + 8 = 52
+  COORDINATE_LABEL_WIDTH + COORDINATE_VALUE_WIDTH + 8;
 
 // Dependent minimum widths for layout elements and window
 var CONTROLS_LAYOUT_MARGINS = 4 + 4; // left margin 4, right margin 4
@@ -379,10 +366,10 @@ function applyWindowMinimumWidth() {
   ui.setMinimumWidth(getMinimumWindowWidthForMode(presetsViewMode));
 }
 
-var x1Input = createCoordinateInput(0.25);
-var y1Input = createCoordinateInput(0.1);
-var x2Input = createCoordinateInput(0.25);
-var y2Input = createCoordinateInput(1.0);
+var x1Input = createCoordinateInput(0.25, 0);
+var y1Input = createCoordinateInput(0.1, 1);
+var x2Input = createCoordinateInput(0.25, 2);
+var y2Input = createCoordinateInput(1.0, 3);
 
 var coordinateInputs = [x1Input, y1Input, x2Input, y2Input];
 var coordinateKeys = ["x1", "y1", "x2", "y2"];
@@ -756,7 +743,7 @@ function showPresetSuggestions(filterText, showAllWithCompletions) {
     }
   }
 
-  ui.showContextMenu();
+  deferShowContextMenu();
 }
 
 function applyPresetByNameOrFilter(text) {
@@ -1284,16 +1271,39 @@ function formatCoordinateValue(val) {
   return str;
 }
 
-function createCoordinateInput(initialValue) {
-  var input = new ui.LineEdit();
-  input.setText(formatCoordinateValue(initialValue));
-  input.getValue = function () {
-    return parseFloat(input.getText());
+function createCoordinateInput(initialValue, index) {
+  if (typeof ui.NumericField !== "undefined") {
+    try {
+      var numericInput = new ui.NumericField(initialValue);
+      numericInput.setType(1); // double
+      numericInput.setStep(0.01);
+      if (index === 0 || index === 2) {
+        numericInput.setMin(0.0);
+        numericInput.setMax(1.0);
+      } else {
+        numericInput.setMin(-1000.0);
+        numericInput.setMax(1000.0);
+      }
+      numericInput.setFixedHeight(20);
+      numericInput.setFixedWidth(COORDINATE_VALUE_WIDTH);
+      numericInput.setBackgroundColor("#1c1c1c");
+      return numericInput;
+    } catch (e) {}
+  }
+
+  var textInput = new ui.LineEdit();
+  textInput.setText(formatCoordinateValue(initialValue));
+  textInput.setFixedHeight(20);
+  textInput.setFixedWidth(COORDINATE_VALUE_WIDTH);
+  textInput.getValue = function () {
+    return parseFloat(textInput.getText());
   };
-  input.setValue = function (value) {
-    input.setText(formatCoordinateValue(value));
+  textInput.setValue = function (value) {
+    isUpdatingTextInput = true;
+    textInput.setText(formatCoordinateValue(value));
+    isUpdatingTextInput = false;
   };
-  return input;
+  return textInput;
 }
 
 function lockCoordinateField(index) {}
@@ -1367,102 +1377,46 @@ function applyPastedCoordinateValues(applyImmediately) {
   );
 }
 
-function parseCoordinateFieldEasingValue(input) {
-  var text = getCoordinateFieldText(input);
-  var clipboardValue = getClipboardEasingValue();
-  if (clipboardValue && text.indexOf(",") !== -1) {
-    return clipboardValue;
-  }
 
-  var exactValue = parseEasingValue(text);
-  if (exactValue) return exactValue;
-
-  var matches = String(text || "").match(/-?\d*\.?\d+(?:e[+-]?\d+)?/gi);
-  if (!matches || matches.length < 4) return null;
-
-  var values = matches.slice(matches.length - 4).map(function (part) {
-    return parseFloat(part);
-  });
-  if (
-    !values.every(function (v) {
-      return !isNaN(v);
-    })
-  )
-    return null;
-
-  return { x1: values[0], y1: values[1], x2: values[2], y2: values[3] };
-}
-
-function applyCoordinateFieldTextIfPasted(input, applyImmediately) {
-  return applyParsedCoordinateValues(
-    parseCoordinateFieldEasingValue(input),
-    applyImmediately,
-  );
-}
-
-function tryApplyPastedCoordinateValues(index, fieldValue, applyImmediately) {
-  var pasted = getClipboardEasingValue();
-  if (!pasted) return false;
-
-  var values = [pasted.x1, pasted.y1, pasted.x2, pasted.y2];
-  if (
-    Math.abs(fieldValue - values[0]) >= 0.001 &&
-    Math.abs(fieldValue - values[index]) >= 0.001
-  ) {
-    return false;
-  }
-
-  return applyPastedCoordinateValues(applyImmediately);
-}
-
-function attachCoordinatePasteShortcutHandler(input) {
-  input.onKeyPress = function (key, event) {
-    if (isPasteKey(key) && isPasteModifierHeld(event)) {
-      return applyPastedCoordinateValues(false);
-    }
-    return handleKeyShortcut(key, event);
-  };
-  input.onKeyDown = input.onKeyPress;
-}
 
 function wireCoordinateInput(input, index) {
   input.onValueChanged = function () {
     if (isUpdatingTextInput) return;
 
-    startEditSession();
-
-    if (applyCoordinateFieldTextIfPasted(input, false)) return;
-
     var newValue = input.getValue();
     if (isNaN(newValue)) return;
+
+    startEditSession();
     resetPresetDropdown();
-
-    if (tryApplyPastedCoordinateValues(index, newValue, false)) return;
-
     currentEasing[coordinateKeys[index]] = newValue;
     redrawGraphs();
+    if (applyOnDragEnabled) {
+      applyEasingToSelectionIfAvailable();
+    }
   };
 
   input.onValueCommitted = function () {
     if (isUpdatingTextInput) return;
 
-    startEditSession();
-
-    if (applyCoordinateFieldTextIfPasted(input, false)) return;
-
-    resetPresetDropdown();
-
     var committedValue = input.getValue();
     if (isNaN(committedValue)) {
-      setCoordinateFieldValuesFromEasing();
-      endEditSession();
+      isUpdatingTextInput = true;
+      input.setValue(currentEasing[coordinateKeys[index]]);
+      isUpdatingTextInput = false;
       return;
     }
 
-    if (tryApplyPastedCoordinateValues(index, committedValue, false)) return;
-
+    resetPresetDropdown();
     currentEasing[coordinateKeys[index]] = committedValue;
+
+    isUpdatingTextInput = true;
+    input.setValue(committedValue);
+    isUpdatingTextInput = false;
+
     redrawGraphs();
+    if (applyOnDragEnabled) {
+      applyEasingToSelectionIfAvailable();
+    }
     endEditSession();
     saveTabPreference();
   };
@@ -1708,7 +1662,7 @@ function showPresetItemContextMenu(libName, presetName, presetData) {
     },
   });
 
-  ui.showContextMenu();
+  deferShowContextMenu();
 }
 
 function addSaveCurrentCurveMenuItems() {
@@ -1805,7 +1759,7 @@ function showEditorContextMenu() {
     },
   });
 
-  ui.showContextMenu();
+  deferShowContextMenu();
 }
 
 /**
@@ -2042,7 +1996,7 @@ function showPresetContextMenu() {
     },
   });
 
-  ui.showContextMenu();
+  deferShowContextMenu();
 }
 
 function showPresetsPageContextMenu() {
@@ -2071,7 +2025,7 @@ function showPresetsPageContextMenu() {
     },
   });
 
-  ui.showContextMenu();
+  deferShowContextMenu();
 }
 
 function showLibraryContextMenu(libName) {
@@ -2216,7 +2170,7 @@ function showLibraryContextMenu(libName) {
     },
   });
 
-  ui.showContextMenu();
+  deferShowContextMenu();
 }
 
 // ============================================================================
@@ -2260,11 +2214,13 @@ mainContextButton.onClick = function () {
   showPresetContextMenu();
 };
 
+// Wire the inputs up cleanly
 wireCoordinateInput(x1Input, 0);
 wireCoordinateInput(y1Input, 1);
 wireCoordinateInput(x2Input, 2);
 wireCoordinateInput(y2Input, 3);
-coordinateInputs.forEach(attachCoordinatePasteShortcutHandler);
+
+coordinateInputs.forEach(attachPasteShortcutHandlers);
 
 presetSearchInput.onValueChanged = function () {
   if (isUpdatingPresetSearchInputText) return;
@@ -2399,10 +2355,6 @@ function createInputGroup(labelName, coordinateIndex) {
   valueBox.setFixedWidth(COORDINATE_VALUE_WIDTH);
   valueBox.setFixedHeight(20);
   valueBox.setBackgroundColor("#1c1c1c");
-
-  coordinateInput.setBackgroundColor("#1c1c1c");
-  coordinateInput.setFixedHeight(20);
-  coordinateInput.setFixedWidth(COORDINATE_VALUE_WIDTH);
 
   var valueLayout = new ui.HLayout();
   valueLayout.setMargins(0, 0, 0, 0);
@@ -3157,14 +3109,6 @@ function attachLibraryChildDragHandlers(
   attachPasteShortcutHandlers(childWidget);
   childWidget.onMousePress = function (position, button) {
     activePastePanel = "presets";
-    if (isContextMenuOpen) {
-      isContextMenuOpen = false;
-      return;
-    }
-    if (button === "right") {
-      showLibraryContextMenu(libName);
-      return;
-    }
     if (button !== "left") return;
     var offset = getOffsetWrtHeader(
       childWidget,
@@ -3179,7 +3123,6 @@ function attachLibraryChildDragHandlers(
     startLibraryDrag(libIndex, headerContainer, translatedPosition);
   };
   childWidget.onMouseMove = function (position) {
-    if (isContextMenuOpen) return;
     var offset = getOffsetWrtHeader(
       childWidget,
       headerContainer,
@@ -3194,6 +3137,10 @@ function attachLibraryChildDragHandlers(
   };
   childWidget.onMouseEnter = function () {};
   childWidget.onMouseRelease = function (position, button) {
+    if (button === "right") {
+      showLibraryContextMenu(libName);
+      return;
+    }
     if (button !== "left") return;
     var offset = getOffsetWrtHeader(
       childWidget,
@@ -3214,14 +3161,6 @@ function attachLibraryDragHandlers(widget, libIndex, libName) {
   attachPasteShortcutHandlers(widget);
   widget.onMousePress = function (position, button) {
     activePastePanel = "presets";
-    if (isContextMenuOpen) {
-      isContextMenuOpen = false;
-      return;
-    }
-    if (button === "right") {
-      showLibraryContextMenu(libName);
-      return;
-    }
     if (button !== "left") return;
     startLibraryDrag(libIndex, widget, position);
   };
@@ -3230,6 +3169,10 @@ function attachLibraryDragHandlers(widget, libIndex, libName) {
   };
   widget.onMouseEnter = function () {};
   widget.onMouseRelease = function (position, button) {
+    if (button === "right") {
+      showLibraryContextMenu(libName);
+      return;
+    }
     if (button !== "left") return;
     updateTargetFromPointer(widget, position);
     if (dragState.dragType) completeDrag();
@@ -3392,11 +3335,7 @@ function buildPresetsTab() {
       collapsedLibraries[libName] = !collapsedLibraries[libName];
       buildPresetsTab();
     };
-    collapseBtn.onMousePress = function (position, button) {
-      if (isContextMenuOpen) {
-        isContextMenuOpen = false;
-        return;
-      }
+    collapseBtn.onMouseRelease = function (position, button) {
       if (button === "right") {
         showLibraryContextMenu(libName);
       }
@@ -3411,15 +3350,6 @@ function buildPresetsTab() {
 
     libMenuBtn.onClick = function () {
       showLibraryContextMenu(libName);
-    };
-    libMenuBtn.onMousePress = function (position, button) {
-      if (isContextMenuOpen) {
-        isContextMenuOpen = false;
-        return;
-      }
-      if (button === "right") {
-        showLibraryContextMenu(libName);
-      }
     };
 
     var headerLayout = new ui.HLayout();
@@ -3527,15 +3457,8 @@ function buildPresetsTab() {
         isSelected: isSelected,
       });
 
-      // Shared drag logic for the card and all of its child widgets.
       function handlePresetPress(widget, position, button) {
-        if (isContextMenuOpen) {
-          isContextMenuOpen = false;
-          return;
-        }
-        if (button === "right") {
-          resetDragState();
-          showPresetItemContextMenu(libName, pName, pData);
+        if (dragState.dragType === "preset") {
           return;
         }
         if (button === "left") {
@@ -3553,6 +3476,7 @@ function buildPresetsTab() {
       function releasePreset(widget, position, button) {
         if (button === "right") {
           resetDragState();
+          showPresetItemContextMenu(libName, pName, pData);
           return;
         }
         if (button !== "left") return;
@@ -3612,8 +3536,17 @@ function buildPresetsTab() {
       }
 
       miniGraph.useHoverEvents(true);
+      if (typeof pLabel.useHoverEvents === "function") {
+        pLabel.useHoverEvents(true);
+      }
       attachPresetChildDragHandlers(miniGraph, itemContainer, 4, 4);
       attachPresetChildDragHandlers(pLabel, itemContainer, 4, 4);
+      attachPresetDragHandlers(
+        itemContainer,
+        handlePresetPress,
+        hoverPreset,
+        releasePreset,
+      );
     });
 
     presetsContainer.add(flow);
@@ -3628,17 +3561,13 @@ function buildPresetsTab() {
   emptySpaceContainer.useHoverEvents(true);
   emptySpaceContainer.onMousePress = function (position, button) {
     activePastePanel = "presets";
-    if (isContextMenuOpen) {
-      isContextMenuOpen = false;
-      return;
-    }
+  };
+  emptySpaceContainer.onMouseRelease = function (position, button) {
     if (button === "right") {
       showPresetsPageContextMenu();
     }
   };
-  emptySpaceContainer.onMouseMove = function (position) {
-    isContextMenuOpen = false;
-  };
+  emptySpaceContainer.onMouseMove = function (position) {};
   presetsContainer.add(emptySpaceContainer);
   presetsContainer.addStretch();
 }
@@ -3840,7 +3769,6 @@ attachPasteShortcutHandlers(graphContainer);
 attachPasteShortcutHandlers(presetsScroll);
 
 presetsScroll.onMouseMove = function (position) {
-  isContextMenuOpen = false;
   if (presetsViewMode !== "tab") {
     activePastePanel = "presets";
   }
