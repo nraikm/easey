@@ -20,6 +20,14 @@ function addFilledPath(canvas, path, color) {
     }
 }
 
+function addDiamond(path, cx, cy, size) {
+    path.moveTo(cx, cy - size);
+    path.lineTo(cx + size, cy);
+    path.lineTo(cx, cy + size);
+    path.lineTo(cx - size, cy);
+    path.close();
+}
+
 function drawGraphBackground(canvas, config, bounds) {
     var overflowBounds = getGridOverflowBounds(bounds);
     var cellSize = getGridCellSize(bounds);
@@ -61,7 +69,7 @@ function drawGraphBackground(canvas, config, bounds) {
  * @param {Object} currentEasing - Current easing values {x1, y1, x2, y2}
  * @param {Object} config - Graph configuration {width, height, padding}
  */
-export function drawCurve(canvas, currentEasing, config) {
+export function drawCurve(canvas, currentEasing, config, lastEasing) {
     // Clear all paths
     canvas.clearPaths();
 
@@ -72,6 +80,28 @@ export function drawCurve(canvas, currentEasing, config) {
     var endY = bounds.endY;
 
     drawGraphBackground(canvas, config, bounds);
+
+    // Draw the last curve if it is provided as a reference
+    if (lastEasing) {
+        var lastCurvePath = new cavalry.Path();
+        var lx1 = (lastEasing.x1 !== undefined) ? lastEasing.x1 : 0.25;
+        var ly1 = (lastEasing.y1 !== undefined) ? lastEasing.y1 : 0.1;
+        var lx2 = (lastEasing.x2 !== undefined) ? lastEasing.x2 : 0.25;
+        var ly2 = (lastEasing.y2 !== undefined) ? lastEasing.y2 : 1.0;
+        
+        var lcp1X = startX + lx1 * (endX - startX);
+        var lcp1Y = endY + ly1 * (startY - endY);
+        var lcp2X = startX + lx2 * (endX - startX);
+        var lcp2Y = endY + ly2 * (startY - endY);
+        
+        lastCurvePath.moveTo(startX, endY);
+        lastCurvePath.cubicTo(lcp1X, lcp1Y, lcp2X, lcp2Y, endX, startY);
+        
+        var lastCurvePaint = {"color": GRAPH_COLORS.lastCurve || "#4c4c4c", "stroke": true, "strokeWidth": 2};
+        if (lastCurvePath && lastCurvePath.toObject) {
+            canvas.addPath(lastCurvePath.toObject(), lastCurvePaint);
+        }
+    }
 
     var curvePath = new cavalry.Path();
     
@@ -127,6 +157,13 @@ export function drawCurve(canvas, currentEasing, config) {
     var controlPaint = {"color": ui.getThemeColor("Accent1"), "stroke": true, "strokeWidth": 1};
     if (controlPath && controlPath.toObject) {
         canvas.addPath(controlPath.toObject(), controlPaint);
+    }
+
+    var endpointPath = new cavalry.Path();
+    addDiamond(endpointPath, startX, endY, 5);
+    addDiamond(endpointPath, endX, startY, 5);
+    if (endpointPath && endpointPath.toObject) {
+        canvas.addPath(endpointPath.toObject(), {"color": "#ffffff", "stroke": false});
     }
     
     // Trigger redraw
@@ -226,6 +263,14 @@ export function drawSpeedCurve(canvas, currentEasing, speedEasing, config) {
     
     var linePaint = {"color": ui.getThemeColor("Accent1"), "stroke": true, "strokeWidth": 2};
     canvas.addPath(linePath.toObject(), linePaint);
+
+    var curveEndY = endY + (targetEndVal * graphHeight);
+    var endpointPath = new cavalry.Path();
+    addDiamond(endpointPath, startX, firstY, 5);
+    addDiamond(endpointPath, endX, curveEndY, 5);
+    if (endpointPath && endpointPath.toObject) {
+        canvas.addPath(endpointPath.toObject(), {"color": "#ffffff", "stroke": false});
+    }
     
     canvas.redraw();
 }

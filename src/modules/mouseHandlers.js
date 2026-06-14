@@ -37,6 +37,22 @@ function mirrorOtherHandle(state, dragHandle) {
     }
 }
 
+function isMacPlatform() {
+    try {
+        return api.getPlatform && api.getPlatform() === "macOS";
+    } catch (e) {
+        return false;
+    }
+}
+
+function isPhysicalControlHeld() {
+    return isMacPlatform() ? api.isMetaHeld() : api.isControlHeld();
+}
+
+function isPlatformCommandHeld() {
+    return isMacPlatform() ? api.isControlHeld() : api.isMetaHeld();
+}
+
 function snapLockedAxis(state, dragHandle, axisConstraint) {
     var coords = getEasingCoords(state, dragHandle);
     if (axisConstraint === 'x') {
@@ -118,7 +134,7 @@ function applyAltLockAngle(state, dragHandle, normX, normY) {
     };
 }
 
-function applyCtrlLockLength(state, dragHandle, normX, normY) {
+function applyCommandLockLength(state, dragHandle, normX, normY) {
     var origin = getHandleOrigin(dragHandle);
     var dx = normX - origin.x;
     var dy = normY - origin.y;
@@ -159,9 +175,18 @@ export function setupValueGraphHandlers(options) {
     var state = options.state;
     var getConfig = options.getConfig;
     var onUpdate = options.onUpdate;
+    var onDragStart = options.onDragStart;
     var onDragEnd = options.onDragEnd;
+    var onContextMenu = options.onContextMenu;
+    var onMouseFocus = options.onMouseFocus;
 
     canvas.onMousePress = function(position, button) {
+        if (onMouseFocus) onMouseFocus();
+        if (button === "right") {
+            if (onContextMenu) onContextMenu(position);
+            return;
+        }
+
         var config = getConfig();
         var bounds = getPlotBounds(config);
 
@@ -179,6 +204,7 @@ export function setupValueGraphHandlers(options) {
         var dist2 = Math.sqrt((position.x - cp2X) * (position.x - cp2X) + (position.y - cp2Y) * (position.y - cp2Y));
 
         if (dist1 < config.handleRadius * 2) {
+            if (onDragStart) onDragStart();
             state.isDragging = true;
             state.dragHandle = 'cp1';
             state.dragStartPosition = { x: position.x, y: position.y };
@@ -194,6 +220,7 @@ export function setupValueGraphHandlers(options) {
                 state.wasShiftHeld = true;
             }
         } else if (dist2 < config.handleRadius * 2) {
+            if (onDragStart) onDragStart();
             state.isDragging = true;
             state.dragHandle = 'cp2';
             state.dragStartPosition = { x: position.x, y: position.y };
@@ -219,18 +246,17 @@ export function setupValueGraphHandlers(options) {
         var norm = pixelToNormalized(position.x, position.y, bounds);
 
         var shiftPressed = api.isShiftHeld();
-        var cmdPressed = api.isControlHeld();
+        var controlPressed = isPhysicalControlHeld();
+        var commandPressed = isPlatformCommandHeld();
         var altPressed = api.isAltHeld();
         var coords;
 
-        if (shiftPressed && cmdPressed) {
-            coords = { x: norm.x, y: norm.y };
-        } else if (altPressed) {
+        if (altPressed) {
             state.lockedLength = null;
             coords = applyAltLockAngle(state, state.dragHandle, norm.x, norm.y);
-        } else if (cmdPressed) {
+        } else if (commandPressed) {
             state.lockedAngle = null;
-            coords = applyCtrlLockLength(state, state.dragHandle, norm.x, norm.y);
+            coords = applyCommandLockLength(state, state.dragHandle, norm.x, norm.y);
         } else if (shiftPressed) {
             state.lockedAngle = null;
             state.lockedLength = null;
@@ -255,7 +281,7 @@ export function setupValueGraphHandlers(options) {
 
         setEasingCoords(state, state.dragHandle, coords.x, coords.y);
 
-        if (shiftPressed && cmdPressed) {
+        if (controlPressed) {
             mirrorOtherHandle(state, state.dragHandle);
         }
 
@@ -283,9 +309,18 @@ export function setupSpeedGraphHandlers(options) {
     var state = options.state;
     var getConfig = options.getConfig;
     var onUpdate = options.onUpdate;
+    var onDragStart = options.onDragStart;
     var onDragEnd = options.onDragEnd;
+    var onContextMenu = options.onContextMenu;
+    var onMouseFocus = options.onMouseFocus;
 
     canvas.onMousePress = function(position, button) {
+        if (onMouseFocus) onMouseFocus();
+        if (button === "right") {
+            if (onContextMenu) onContextMenu(position);
+            return;
+        }
+
         var config = getConfig();
         var bounds = getPlotBounds(config);
         var startX = bounds.startX;
@@ -304,9 +339,11 @@ export function setupSpeedGraphHandlers(options) {
         var dist2 = Math.sqrt(Math.pow(position.x - inHandleX, 2) + Math.pow(position.y - inHandleY, 2));
 
         if (dist1 < config.handleRadius * 2) {
+            if (onDragStart) onDragStart();
             state.speedDragging = true;
             state.speedDragHandle = 'out';
         } else if (dist2 < config.handleRadius * 2) {
+            if (onDragStart) onDragStart();
             state.speedDragging = true;
             state.speedDragHandle = 'in';
         }
@@ -325,7 +362,7 @@ export function setupSpeedGraphHandlers(options) {
         var graphHeight = startY - endY;
 
         var shiftPressed = api.isShiftHeld();
-        var cmdPressed = api.isControlHeld();
+        var controlPressed = isPhysicalControlHeld();
 
         if (state.speedDragHandle === 'out') {
             var clampedX = Math.max(startX, Math.min(midX, position.x));
@@ -336,7 +373,7 @@ export function setupSpeedGraphHandlers(options) {
                 state.speedEasing.outSpeedY = (clampedY - endY) / graphHeight;
             }
 
-            if (cmdPressed) {
+            if (controlPressed) {
                 state.speedEasing.inInfluence = state.speedEasing.outInfluence;
                 state.speedEasing.inSpeedY = state.speedEasing.outSpeedY;
             }
@@ -349,7 +386,7 @@ export function setupSpeedGraphHandlers(options) {
                 state.speedEasing.inSpeedY = (clampedY - endY) / graphHeight;
             }
 
-            if (cmdPressed) {
+            if (controlPressed) {
                 state.speedEasing.outInfluence = state.speedEasing.inInfluence;
                 state.speedEasing.outSpeedY = state.speedEasing.inSpeedY;
             }

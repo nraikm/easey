@@ -39,7 +39,8 @@ export var GRAPH_COLORS = {
     overflow: "#2c2c2c",
     plot: "#303030",
     gridOverflow: "#333333",
-    gridMain: "#373737"
+    gridMain: "#373737",
+    lastCurve: "#4c4c4c"
 };
 
 // Speed graph defaults

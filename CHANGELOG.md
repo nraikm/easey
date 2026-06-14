@@ -39,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Embedded icons** - no easey_assets folder needed.
 
 ### Changed
-- Hold CMD to mirror handles on the Speed Graph 
+- Hold Control to mirror handles on the Speed Graph 
 
 ## [1.0.0] - 2025-11-05
 

@@ -160,12 +160,46 @@ export function loadApplyOnDragSetting() {
     return loadPreference("easey_applyOnDrag", false, "Could not load apply on drag setting");
 }
 
+export function saveLivePresetsApplySetting(enabled) {
+    savePreference("easey_livePresetsApply", enabled, "Could not save live presets apply setting");
+}
+
+export function loadLivePresetsApplySetting() {
+    try {
+        if (api.hasPreferenceObject("easey_livePresetsApply")) {
+            var saved = api.getPreferenceObject("easey_livePresetsApply");
+            if (saved !== null && saved !== undefined) {
+                return saved;
+            }
+        }
+    } catch (e) {
+        console.log("Could not load live presets apply setting:", e.message);
+    }
+    return loadPreference("easey_liveEditorApply", false, "Could not load live editor apply setting");
+}
+
+export function saveConfirmActionsSetting(enabled) {
+    savePreference("easey_confirmActions", enabled, "Could not save confirmation setting");
+}
+
+export function loadConfirmActionsSetting() {
+    return loadPreference("easey_confirmActions", true, "Could not load confirmation setting");
+}
+
 export function saveClampIdenticalSetting(enabled) {
     savePreference("easey_clampIdenticalValues", enabled, "Could not save clamp identical setting");
 }
 
 export function loadClampIdenticalSetting() {
     return loadPreference("easey_clampIdenticalValues", true, "Could not load clamp identical setting");
+}
+
+export function saveLastCurveBehaviorSetting(behavior) {
+    savePreference("easey_lastCurveBehavior", behavior, "Could not save last curve behavior setting");
+}
+
+export function loadLastCurveBehaviorSetting() {
+    return loadPreference("easey_lastCurveBehavior", 0, "Could not load last curve behavior setting");
 }
 
 export function saveLastSelectedTab(tabIndex) {
@@ -181,6 +215,27 @@ export function copyCubicBezierToClipboard(currentEasing) {
                currentEasing.y1.toFixed(3) + ", " + 
                currentEasing.x2.toFixed(3) + ", " + 
                currentEasing.y2.toFixed(3) + ")";
+    api.setClipboardText(text);
+    console.log("Copied " + text + " to clipboard");
+}
+
+function formatCompactNumber(value) {
+    var rounded = Math.round(value * 1000) / 1000;
+    if (Math.abs(rounded) < 0.0005) {
+        rounded = 0;
+    }
+    return String(rounded);
+}
+
+export function getEasingNumberString(currentEasing) {
+    return formatCompactNumber(currentEasing.x1) + "," +
+        formatCompactNumber(currentEasing.y1) + "," +
+        formatCompactNumber(currentEasing.x2) + "," +
+        formatCompactNumber(currentEasing.y2);
+}
+
+export function copyEasingNumbersToClipboard(currentEasing) {
+    var text = getEasingNumberString(currentEasing);
     api.setClipboardText(text);
     console.log("Copied " + text + " to clipboard");
 }
@@ -248,6 +303,11 @@ function getFileNameWithoutExtension(filePath) {
     return name;
 }
 
+function getSafeJsonFileName(name) {
+    var safeName = name.replace(/[\/\\:*?"<>|]/g, "-").trim();
+    return (safeName || "easey-curve") + ".json";
+}
+
 export function exportLibraryToFlowFile(libraryName, libraries) {
     try {
         var libPresets = libraries[libraryName];
@@ -284,7 +344,7 @@ export function exportLibraryToFlowFile(libraryName, libraries) {
     }
 }
 
-export function importLibraryFromFlowFile(libraries, onImport) {
+export function importLibraryFromFlowFile(libraries, onImport, confirmImportIntoNonEmpty) {
     try {
         var filePath = api.presentOpenFile(
             getDialogStartPath(),
@@ -318,6 +378,15 @@ export function importLibraryFromFlowFile(libraries, onImport) {
         }
 
         libraryName = libraryName.trim();
+        if (
+            libraries[libraryName] &&
+            Object.keys(libraries[libraryName]).length > 0 &&
+            confirmImportIntoNonEmpty &&
+            !confirmImportIntoNonEmpty(libraryName, Object.keys(importedLibrary).length)
+        ) {
+            return;
+        }
+
         if (!libraries[libraryName]) {
             libraries[libraryName] = {};
         }
@@ -334,5 +403,174 @@ export function importLibraryFromFlowFile(libraries, onImport) {
             " preset(s) into library '" + libraryName + "'");
     } catch (e) {
         console.log("Error importing library:", e.message);
+    }
+}
+
+export function mergeImportIntoLibrary(libraries, libraryName, onImport, confirmMerge) {
+    try {
+        var filePath = api.presentOpenFile(
+            getDialogStartPath(),
+            "Merge Import Collection",
+            "Flow Library (*.flow)"
+        );
+
+        if (!filePath) {
+            return;
+        }
+
+        var content = api.readFromFile(filePath);
+        var flowData = JSON.parse(content);
+        var importedLibrary = flowFormatToLibrary(flowData);
+
+        var importCount = Object.keys(importedLibrary).length;
+        if (importCount === 0) {
+            console.log("No valid presets found in file.");
+            return;
+        }
+
+        if (confirmMerge && !confirmMerge(libraryName, importCount)) {
+            return;
+        }
+
+        if (!libraries[libraryName]) {
+            libraries[libraryName] = {};
+        }
+
+        for (var presetName in importedLibrary) {
+            libraries[libraryName][presetName] = importedLibrary[presetName];
+        }
+
+        if (onImport) {
+            onImport(libraryName);
+        }
+
+        console.log("Merged " + importCount + " preset(s) into library '" + libraryName + "'");
+    } catch (e) {
+        console.log("Error merge importing library:", e.message);
+    }
+}
+
+export function savePresetAsJson(presetName, presetData) {
+    try {
+        var defaultFileName = presetName + ".json";
+        var filePath = api.presentSaveFile(
+            getDialogStartPath(),
+            "Save Preset",
+            "JSON Easing (*.json)",
+            defaultFileName
+        );
+
+        if (!filePath) {
+            return;
+        }
+
+        if (filePath.lastIndexOf(".json") !== filePath.length - 5) {
+            filePath += ".json";
+        }
+
+        var exportData = {};
+        exportData[presetName] = formatFlowValue(presetData.x1) + "," +
+            formatFlowValue(presetData.y1) + "," +
+            formatFlowValue(presetData.x2) + "," +
+            formatFlowValue(presetData.y2);
+        var content = JSON.stringify(exportData, null, 4);
+
+        if (api.writeToFile(filePath, content, true)) {
+            console.log("Saved preset '" + presetName + "' to " + filePath);
+        } else {
+            console.log("Failed to save preset to " + filePath);
+        }
+    } catch (e) {
+        console.log("Error saving preset to JSON:", e.message);
+    }
+}
+
+export function exportCurrentCurveToJson(currentEasing) {
+    try {
+        var modal = new ui.Modal();
+        var curveName = modal.showStringInput(
+            "Export Current Curve",
+            "Enter curve name:",
+            "bezier-name"
+        );
+
+        if (!curveName || curveName.trim() === "") {
+            return;
+        }
+
+        curveName = curveName.trim();
+
+        var filePath = api.presentSaveFile(
+            getDialogStartPath(),
+            "Export Current Curve",
+            "JSON Easing (*.json)",
+            getSafeJsonFileName(curveName)
+        );
+
+        if (!filePath) {
+            return;
+        }
+
+        if (filePath.lastIndexOf(".json") !== filePath.length - 5) {
+            filePath += ".json";
+        }
+
+        var exportData = {};
+        exportData[curveName] = getEasingNumberString(currentEasing);
+        var content = JSON.stringify(exportData);
+
+        if (api.writeToFile(filePath, content, true)) {
+            console.log("Exported current curve to " + filePath);
+        } else {
+            console.log("Failed to export current curve to " + filePath);
+        }
+    } catch (e) {
+        console.log("Error exporting current curve:", e.message);
+    }
+}
+
+export function renamePresetInLibrary(libraries, libraryName, oldPresetName, onRename) {
+    try {
+        var modal = new ui.Modal();
+        var newName = modal.showStringInput("Rename Preset", "Enter new name (max 30 chars):", oldPresetName);
+        if (newName && newName.trim() !== "" && newName !== oldPresetName) {
+            newName = newName.trim();
+            if (newName.length > 30) {
+                console.log("Preset name too long. Please use 30 characters or less.");
+                return;
+            }
+            var lib = libraries[libraryName];
+            if (lib) {
+                if (lib[newName]) {
+                    console.log("A preset named '" + newName + "' already exists in this library.");
+                    return;
+                }
+                
+                var reordered = {};
+                for (var name in lib) {
+                    if (name === oldPresetName) {
+                        reordered[newName] = lib[oldPresetName];
+                    } else {
+                        reordered[name] = lib[name];
+                    }
+                }
+                libraries[libraryName] = reordered;
+                if (onRename) onRename();
+            }
+        }
+    } catch (e) {
+        console.log("Error renaming preset:", e.message);
+    }
+}
+
+export function deletePresetFromLibrary(libraries, libraryName, presetName, onDelete) {
+    try {
+        var lib = libraries[libraryName];
+        if (lib && lib[presetName]) {
+            delete lib[presetName];
+            if (onDelete) onDelete();
+        }
+    } catch (e) {
+        console.log("Error deleting preset:", e.message);
     }
 }

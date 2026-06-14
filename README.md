@@ -16,7 +16,7 @@ You can also save presets, and copy duration and easing values to pass to develo
 If you're looking for a more polished value graph editor that supports Magic Easing, check out [Curves at Scenery.io](https://scenery.io/scripts/curves-42xvUYqCpvY).
 
 > [!TIP]
-> Hold CTRL/CMD while dragging handles to mirror them in the Speed graph.
+> Hold Control while dragging handles to mirror them in the Speed graph.
 
 ---
 
