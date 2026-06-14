@@ -7,18 +7,23 @@
  * @throws {Error} If frame rate cannot be retrieved or is invalid
  */
 export function getCompositionFrameRate() {
-    try {
-        var activeCompId = api.getActiveComp();
-        var frameRate = api.get(activeCompId, "fps");
-        
-        if (frameRate === undefined || frameRate === null || typeof frameRate !== 'number' || frameRate <= 0) {
-            throw new Error("Invalid frame rate value: " + frameRate);
-        }
-        
-        return frameRate;
-    } catch (e) {
-        throw new Error("Failed to get composition frame rate: " + e.message);
+  try {
+    var activeCompId = api.getActiveComp();
+    var frameRate = api.get(activeCompId, "fps");
+
+    if (
+      frameRate === undefined ||
+      frameRate === null ||
+      typeof frameRate !== "number" ||
+      frameRate <= 0
+    ) {
+      throw new Error("Invalid frame rate value: " + frameRate);
     }
+
+    return frameRate;
+  } catch (e) {
+    throw new Error("Failed to get composition frame rate: " + e.message);
+  }
 }
 
 /**
@@ -32,17 +37,17 @@ export function getCompositionFrameRate() {
  * @returns {Object} Cavalry handle values {outHandleX, outHandleY, inHandleX, inHandleY}
  */
 export function cubicBezierToCavalry(x1, y1, x2, y2, frameDiff, valueDiff) {
-    var outHandleX = x1 * frameDiff;
-    var outHandleY = y1 * valueDiff;
-    var inHandleX = (x2 - 1) * frameDiff;
-    var inHandleY = (y2 - 1) * valueDiff;
-    
-    return {
-        outHandleX: outHandleX,
-        outHandleY: outHandleY,
-        inHandleX: inHandleX,
-        inHandleY: inHandleY
-    };
+  var outHandleX = x1 * frameDiff;
+  var outHandleY = y1 * valueDiff;
+  var inHandleX = (x2 - 1) * frameDiff;
+  var inHandleY = (y2 - 1) * valueDiff;
+
+  return {
+    outHandleX: outHandleX,
+    outHandleY: outHandleY,
+    inHandleX: inHandleX,
+    inHandleY: inHandleY,
+  };
 }
 
 /**
@@ -55,18 +60,25 @@ export function cubicBezierToCavalry(x1, y1, x2, y2, frameDiff, valueDiff) {
  * @param {number} valueDiff - Value difference between keyframes
  * @returns {Object} Cubic bezier values {x1, y1, x2, y2}
  */
-export function cavalryToCubicBezier(outHandleX, outHandleY, inHandleX, inHandleY, frameDiff, valueDiff) {
-    var x1 = outHandleX / frameDiff;
-    var y1 = Math.abs(valueDiff) > 0.001 ? outHandleY / valueDiff : 0;
-    var x2 = (frameDiff + inHandleX) / frameDiff;
-    var y2 = Math.abs(valueDiff) > 0.001 ? 1 + (inHandleY / valueDiff) : 1;
-    
-    return {
-        x1: x1,
-        y1: y1,
-        x2: x2,
-        y2: y2
-    };
+export function cavalryToCubicBezier(
+  outHandleX,
+  outHandleY,
+  inHandleX,
+  inHandleY,
+  frameDiff,
+  valueDiff,
+) {
+  var x1 = outHandleX / frameDiff;
+  var y1 = Math.abs(valueDiff) > 0.001 ? outHandleY / valueDiff : 0;
+  var x2 = (frameDiff + inHandleX) / frameDiff;
+  var y2 = Math.abs(valueDiff) > 0.001 ? 1 + inHandleY / valueDiff : 1;
+
+  return {
+    x1: x1,
+    y1: y1,
+    x2: x2,
+    y2: y2,
+  };
 }
 
 /**
@@ -79,41 +91,41 @@ export function cavalryToCubicBezier(outHandleX, outHandleY, inHandleX, inHandle
  * @returns {{ rightSpeed: number, rightInfluence: number, leftSpeed: number, leftInfluence: number }}
  */
 export function cubicBezierToVelocity(x1, y1, x2, y2) {
-    var MIN_INFLUENCE = 0.01;
-    var MAX_INFLUENCE = 1.0;
-    var MIN_SPEED = 0.0;
-    var MAX_SPEED = 2.0;
-    var EPS = 0.0001;
+  var MIN_INFLUENCE = 0.01;
+  var MAX_INFLUENCE = 1.0;
+  var MIN_SPEED = 0.0;
+  var MAX_SPEED = 2.0;
+  var EPS = 0.0001;
 
-    var nx1 = Math.max(0, Math.min(1, x1));
-    var nx2 = Math.max(0, Math.min(1, x2));
+  var nx1 = Math.max(0, Math.min(1, x1));
+  var nx2 = Math.max(0, Math.min(1, x2));
 
-    var rightInfluence = Math.max(MIN_INFLUENCE, Math.min(MAX_INFLUENCE, nx1));
-    var leftInfluence = Math.max(MIN_INFLUENCE, Math.min(MAX_INFLUENCE, 1 - nx2));
+  var rightInfluence = Math.max(MIN_INFLUENCE, Math.min(MAX_INFLUENCE, nx1));
+  var leftInfluence = Math.max(MIN_INFLUENCE, Math.min(MAX_INFLUENCE, 1 - nx2));
 
-    var rightSpeed = MIN_SPEED;
-    if (Math.abs(nx1) > EPS) {
-        var rs = y1 / nx1;
-        if (isFinite(rs)) {
-            rightSpeed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, rs));
-        }
+  var rightSpeed = MIN_SPEED;
+  if (Math.abs(nx1) > EPS) {
+    var rs = y1 / nx1;
+    if (isFinite(rs)) {
+      rightSpeed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, rs));
     }
+  }
 
-    var oneMinusX2 = 1 - nx2;
-    var leftSpeed = MIN_SPEED;
-    if (Math.abs(oneMinusX2) > EPS) {
-        var ls = (1 - y2) / oneMinusX2;
-        if (isFinite(ls)) {
-            leftSpeed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, ls));
-        }
+  var oneMinusX2 = 1 - nx2;
+  var leftSpeed = MIN_SPEED;
+  if (Math.abs(oneMinusX2) > EPS) {
+    var ls = (1 - y2) / oneMinusX2;
+    if (isFinite(ls)) {
+      leftSpeed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, ls));
     }
+  }
 
-    return {
-        rightSpeed: rightSpeed,
-        rightInfluence: rightInfluence,
-        leftSpeed: leftSpeed,
-        leftInfluence: leftInfluence
-    };
+  return {
+    rightSpeed: rightSpeed,
+    rightInfluence: rightInfluence,
+    leftSpeed: leftSpeed,
+    leftInfluence: leftInfluence,
+  };
 }
 
 /**
@@ -124,13 +136,18 @@ export function cubicBezierToVelocity(x1, y1, x2, y2) {
  * @param {number} inSpeedY - Incoming speed Y intensity (0-1 range)
  * @returns {Object} Cubic bezier values {x1, y1, x2, y2}
  */
-export function speedToCubicBezier(outInfluence, inInfluence, outSpeedY, inSpeedY) {
-    return {
-        x1: outInfluence / 100,
-        y1: outSpeedY,                    // Left handle Y maps directly to y1
-        x2: 1 - (inInfluence / 100),
-        y2: 1 - inSpeedY                  // Right handle Y is inverted
-    };
+export function speedToCubicBezier(
+  outInfluence,
+  inInfluence,
+  outSpeedY,
+  inSpeedY,
+) {
+  return {
+    x1: outInfluence / 100,
+    y1: outSpeedY, // Left handle Y maps directly to y1
+    x2: 1 - inInfluence / 100,
+    y2: 1 - inSpeedY, // Right handle Y is inverted
+  };
 }
 
 /**
@@ -142,12 +159,12 @@ export function speedToCubicBezier(outInfluence, inInfluence, outSpeedY, inSpeed
  * @returns {Object} Speed values {outInfluence, inInfluence, outSpeedY, inSpeedY}
  */
 export function cubicBezierToSpeed(x1, y1, x2, y2) {
-    return {
-        outInfluence: x1 * 100,
-        inInfluence: (1 - x2) * 100,
-        outSpeedY: y1,                    // y1 maps directly to left handle Y
-        inSpeedY: 1 - y2                  // y2 is inverted
-    };
+  return {
+    outInfluence: x1 * 100,
+    inInfluence: (1 - x2) * 100,
+    outSpeedY: y1, // y1 maps directly to left handle Y
+    inSpeedY: 1 - y2, // y2 is inverted
+  };
 }
 
 /**
@@ -160,22 +177,24 @@ export function cubicBezierToSpeed(x1, y1, x2, y2) {
  * @returns {number} Velocity at time t
  */
 export function calculateVelocityAtTime(t, x1, y1, x2, y2) {
-    var oneMinusT = 1 - t;
-    
-    // Calculate dy/dt (rate of value change over curve parameter)
-    var dy = 3 * oneMinusT * oneMinusT * y1 + 
-             6 * oneMinusT * t * (y2 - y1) + 
-             3 * t * t * (1 - y2);
-    
-    // Calculate dx/dt (rate of time change over curve parameter)
-    var dx = 3 * oneMinusT * oneMinusT * x1 + 
-             6 * oneMinusT * t * (x2 - x1) + 
-             3 * t * t * (1 - x2);
-    
-    // Speed is dy/dx (avoid division by zero)
-    var speed = Math.abs(dx) > 0.0001 ? Math.abs(dy / dx) : 0;
-    
-    return speed;
+  var oneMinusT = 1 - t;
+
+  // Calculate dy/dt (rate of value change over curve parameter)
+  var dy =
+    3 * oneMinusT * oneMinusT * y1 +
+    6 * oneMinusT * t * (y2 - y1) +
+    3 * t * t * (1 - y2);
+
+  // Calculate dx/dt (rate of time change over curve parameter)
+  var dx =
+    3 * oneMinusT * oneMinusT * x1 +
+    6 * oneMinusT * t * (x2 - x1) +
+    3 * t * t * (1 - x2);
+
+  // Speed is dy/dx (avoid division by zero)
+  var speed = Math.abs(dx) > 0.0001 ? Math.abs(dy / dx) : 0;
+
+  return speed;
 }
 
 /**
@@ -188,25 +207,25 @@ export function calculateVelocityAtTime(t, x1, y1, x2, y2) {
  * @returns {number[]} Array of normalized velocity samples (0-1)
  */
 export function sampleVelocityCurve(x1, y1, x2, y2, sampleCount) {
-    var samples = [];
-    var maxSpeed = 0;
-    
-    // First pass: calculate all speeds and find maximum
-    for (var i = 0; i <= sampleCount; i++) {
-        var t = i / sampleCount;
-        var speed = calculateVelocityAtTime(t, x1, y1, x2, y2);
-        samples.push(speed);
-        maxSpeed = Math.max(maxSpeed, speed);
-    }
-    
-    // Second pass: normalize to 0-1 range
-    if (maxSpeed < 0.0001) maxSpeed = 1;
-    
-    for (var i = 0; i < samples.length; i++) {
-        samples[i] = samples[i] / maxSpeed;
-    }
-    
-    return samples;
+  var samples = [];
+  var maxSpeed = 0;
+
+  // First pass: calculate all speeds and find maximum
+  for (var i = 0; i <= sampleCount; i++) {
+    var t = i / sampleCount;
+    var speed = calculateVelocityAtTime(t, x1, y1, x2, y2);
+    samples.push(speed);
+    maxSpeed = Math.max(maxSpeed, speed);
+  }
+
+  // Second pass: normalize to 0-1 range
+  if (maxSpeed < 0.0001) maxSpeed = 1;
+
+  for (var i = 0; i < samples.length; i++) {
+    samples[i] = samples[i] / maxSpeed;
+  }
+
+  return samples;
 }
 
 /**
@@ -216,5 +235,5 @@ export function sampleVelocityCurve(x1, y1, x2, y2, sampleCount) {
  * @returns {number} Duration in milliseconds
  */
 export function framesToMilliseconds(frames, frameRate) {
-    return Math.round((frames / frameRate) * 1000);
+  return Math.round((frames / frameRate) * 1000);
 }

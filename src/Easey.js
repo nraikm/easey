@@ -175,19 +175,25 @@ ui.addMenuItem = function (item) {
   }
 };
 
-// Current easing values
+// Current easing values (x1, y1, x2, y2) representing the cubic bezier curve
 var currentEasing = Object.assign({}, DEFAULT_EASING);
 
 // Speed graph state
 var speedEasing = Object.assign({}, DEFAULT_SPEED_EASING);
 
 // Helper to calculate dynamic padding based on graph dimensions
+/**
+ * Calculate dynamic padding based on graph dimensions to ensure handles stay within bounds.
+ * @param {number} w - The width of the graph.
+ * @param {number} h - The height of the graph.
+ * @returns {number} The calculated padding value.
+ */
 function calculateDynamicPadding(w, h) {
   var minDim = Math.min(w, h);
   return Math.max(26, Math.min(40, Math.round(minDim * 0.12)));
 }
 
-// Graph dimensions (mutable for resize)
+// Value graph dimensions (mutable for dynamic resizing of the UI)
 var graphWidth = GRAPH_CONFIG.width;
 var graphHeight = GRAPH_CONFIG.height;
 var graphPadding = calculateDynamicPadding(graphWidth, graphHeight);
@@ -202,7 +208,7 @@ var speedGraphPadding = calculateDynamicPadding(
 );
 var speedHandleRadius = GRAPH_CONFIG.handleRadius;
 
-// Drag state for value graph
+// Drag state variables for managing user interaction with the value graph handles
 var isDragging = false;
 var dragHandle = null;
 var dragStartPosition = null;
@@ -218,7 +224,7 @@ var shiftEngageCoords = null;
 var speedDragging = false;
 var speedDragHandle = null;
 
-// Settings
+// User configuration and settings (persisted across sessions)
 var applyOnDragEnabled = false;
 var livePresetsApplyEnabled = false;
 var confirmActionsEnabled = true;
@@ -236,6 +242,10 @@ var appliedGraphHeight = 180;
 var lastEasing = null;
 var activeEditSession = false;
 
+/**
+ * Start an edit session. Caches the curve before edit to allow for undo-like behavior
+ * or restoring the last curve state.
+ */
 function startEditSession() {
   if (!activeEditSession) {
     activeEditSession = true;
@@ -246,6 +256,9 @@ function startEditSession() {
   }
 }
 
+/**
+ * End an edit session. Finalizes the curve state.
+ */
 function endEditSession() {
   if (activeEditSession) {
     activeEditSession = false;
@@ -257,6 +270,11 @@ function endEditSession() {
   }
 }
 
+/**
+ * Update the last easing state for an atomic change (e.g., clicking a preset or pasting),
+ * which doesn't follow the drag start/end session pattern.
+ * @param {Object} prevEasing - The easing state before the atomic change.
+ */
 function updateLastEasingForAtomicChange(prevEasing) {
   endEditSession();
   if (lastCurveBehavior === 1) {
@@ -286,6 +304,7 @@ var trackedApplyModifiers = {
 
 // ============================================================================
 // UI ELEMENTS
+// Definition of all Cavalry UI widgets, buttons, canvases, and layout containers.
 // ============================================================================
 
 // Create canvases
@@ -333,15 +352,14 @@ var MIN_PRESETS_CONTENT_WIDTH = 120;
 var MIN_DIALOG_WIDTH = 320;
 
 // Minimum width of the controls layout (also the minimum width of the graph section in side-by-side mode)
-var MIN_GRAPH_WIDTH =
-  Math.max(
-    MIN_GRAPH_SECTION_WIDTH,
-    GRAPH_MODE_BTN_WIDTH +
-      MAIN_CONTEXT_BTN_WIDTH +
-      CONTROLS_LAYOUT_MARGINS +
-      CONTROLS_LAYOUT_SPACING +
-      4 * COORDINATE_CONTAINER_WIDTH,
-  );
+var MIN_GRAPH_WIDTH = Math.max(
+  MIN_GRAPH_SECTION_WIDTH,
+  GRAPH_MODE_BTN_WIDTH +
+    MAIN_CONTEXT_BTN_WIDTH +
+    CONTROLS_LAYOUT_MARGINS +
+    CONTROLS_LAYOUT_SPACING +
+    4 * COORDINATE_CONTAINER_WIDTH,
+);
 
 // Minimum width of the entire window
 var MIN_WINDOW_WIDTH =
@@ -382,6 +400,9 @@ var presetSearchGroupContainer;
 
 var isUpdatingPresetSearchInputText = false;
 
+/**
+ * Synchronize the visual selection state of the preset pane with the current easing.
+ */
 function syncPresetPaneSelection() {
   if (typeof dragState === "undefined" || !dragState || !dragState.presetItems)
     return;
@@ -423,6 +444,10 @@ function resetPresetDropdown() {
   syncPresetPaneSelection();
 }
 
+/**
+ * Check if the user has selected any keyframes in the Cavalry editor.
+ * @returns {boolean} True if keyframes are selected, otherwise false.
+ */
 function hasSelectedKeyframes() {
   try {
     var keyframeIds = api.getSelectedKeyframeIds();
@@ -432,6 +457,10 @@ function hasSelectedKeyframes() {
   }
 }
 
+/**
+ * Determine if the current platform is macOS.
+ * @returns {boolean} True if running on macOS, otherwise false.
+ */
 function isMacPlatform() {
   try {
     if (!api.getPlatform) return true;
@@ -442,6 +471,11 @@ function isMacPlatform() {
   }
 }
 
+/**
+ * Safely read a modifier key state from the Cavalry API.
+ * @param {string} fnName - The API function name to call (e.g., "isShiftHeld").
+ * @returns {boolean} True if the modifier is held, otherwise false.
+ */
 function readModifierState(fnName) {
   try {
     return !!(api[fnName] && api[fnName]());
@@ -450,20 +484,33 @@ function readModifierState(fnName) {
   }
 }
 
+/**
+ * Normalize a key name string to a standard lowercase format for easier comparison.
+ * @param {string|number|null} key - The key name or code.
+ * @returns {string} The normalized key name.
+ */
 function normalizeKeyName(key) {
   if (key === undefined || key === null) return "";
-  return String(key).toLowerCase().replace(/[\s_\-]+/g, "");
+  return String(key)
+    .toLowerCase()
+    .replace(/[\s_\-]+/g, "");
 }
 
 function updateTrackedApplyModifiersFromEvent(event) {
   if (!event) return;
-  if (event.shiftKey !== undefined) trackedApplyModifiers.shift = !!event.shiftKey;
+  if (event.shiftKey !== undefined)
+    trackedApplyModifiers.shift = !!event.shiftKey;
   if (event.altKey !== undefined) trackedApplyModifiers.option = !!event.altKey;
-  if (event.optionKey !== undefined) trackedApplyModifiers.option = !!event.optionKey;
-  if (event.metaKey !== undefined) trackedApplyModifiers.command = !!event.metaKey;
-  if (event.commandKey !== undefined) trackedApplyModifiers.command = !!event.commandKey;
-  if (event.ctrlKey !== undefined) trackedApplyModifiers.control = !!event.ctrlKey;
-  if (event.controlKey !== undefined) trackedApplyModifiers.control = !!event.controlKey;
+  if (event.optionKey !== undefined)
+    trackedApplyModifiers.option = !!event.optionKey;
+  if (event.metaKey !== undefined)
+    trackedApplyModifiers.command = !!event.metaKey;
+  if (event.commandKey !== undefined)
+    trackedApplyModifiers.command = !!event.commandKey;
+  if (event.ctrlKey !== undefined)
+    trackedApplyModifiers.control = !!event.ctrlKey;
+  if (event.controlKey !== undefined)
+    trackedApplyModifiers.control = !!event.controlKey;
 }
 
 function updateTrackedApplyModifiersFromKey(key, event, isDown) {
@@ -472,11 +519,30 @@ function updateTrackedApplyModifiersFromKey(key, event, isDown) {
   var name = normalizeKeyName(key);
   if (name === "shift" || name === "keyshift" || name === "16777248") {
     trackedApplyModifiers.shift = isDown;
-  } else if (name === "alt" || name === "option" || name === "keyalt" || name === "keyoption" || name === "16777251") {
+  } else if (
+    name === "alt" ||
+    name === "option" ||
+    name === "keyalt" ||
+    name === "keyoption" ||
+    name === "16777251"
+  ) {
     trackedApplyModifiers.option = isDown;
-  } else if (name === "meta" || name === "cmd" || name === "command" || name === "keymeta" || name === "keycommand" || name === "16777250") {
+  } else if (
+    name === "meta" ||
+    name === "cmd" ||
+    name === "command" ||
+    name === "keymeta" ||
+    name === "keycommand" ||
+    name === "16777250"
+  ) {
     trackedApplyModifiers.command = isDown;
-  } else if (name === "control" || name === "ctrl" || name === "keycontrol" || name === "keyctrl" || name === "16777249") {
+  } else if (
+    name === "control" ||
+    name === "ctrl" ||
+    name === "keycontrol" ||
+    name === "keyctrl" ||
+    name === "16777249"
+  ) {
     trackedApplyModifiers.control = isDown;
   }
 }
@@ -489,10 +555,16 @@ function clearTrackedApplyModifiers() {
 }
 
 function captureLiveApplyModifiers() {
-  trackedApplyModifiers.shift = trackedApplyModifiers.shift || readModifierState("isShiftHeld");
-  trackedApplyModifiers.option = trackedApplyModifiers.option || readModifierState("isAltHeld");
-  trackedApplyModifiers.command = trackedApplyModifiers.command || readModifierState("isControlHeld") || readModifierState("isMetaHeld");
-  trackedApplyModifiers.control = trackedApplyModifiers.control || readModifierState("isMetaHeld");
+  trackedApplyModifiers.shift =
+    trackedApplyModifiers.shift || readModifierState("isShiftHeld");
+  trackedApplyModifiers.option =
+    trackedApplyModifiers.option || readModifierState("isAltHeld");
+  trackedApplyModifiers.command =
+    trackedApplyModifiers.command ||
+    readModifierState("isControlHeld") ||
+    readModifierState("isMetaHeld");
+  trackedApplyModifiers.control =
+    trackedApplyModifiers.control || readModifierState("isMetaHeld");
 }
 
 function getHeldApplyTargetSections() {
@@ -502,9 +574,12 @@ function getHeldApplyTargetSections() {
     outgoing: false,
   };
 
-  var shiftHeld = readModifierState("isShiftHeld") || trackedApplyModifiers.shift;
-  var controlHeld = readModifierState("isControlHeld") || trackedApplyModifiers.control;
-  var metaHeld = readModifierState("isMetaHeld") || trackedApplyModifiers.command;
+  var shiftHeld =
+    readModifierState("isShiftHeld") || trackedApplyModifiers.shift;
+  var controlHeld =
+    readModifierState("isControlHeld") || trackedApplyModifiers.control;
+  var metaHeld =
+    readModifierState("isMetaHeld") || trackedApplyModifiers.command;
   var altHeld = readModifierState("isAltHeld") || trackedApplyModifiers.option;
   var isMac = isMacPlatform();
 
@@ -520,7 +595,9 @@ function getHeldApplyTargetSections() {
     }
   }
 
-  return targetSections.incoming || targetSections.middle || targetSections.outgoing
+  return targetSections.incoming ||
+    targetSections.middle ||
+    targetSections.outgoing
     ? targetSections
     : null;
 }
@@ -533,6 +610,12 @@ function applyEasingToSelectionIfAvailable(targetSections) {
 
 // Live presets are applied via handlePresetClick.
 
+/**
+ * Apply a specific preset's data to the current curve, updating UI and potentially the selection.
+ * @param {Object} pData - The preset easing data containing x1, y1, x2, y2.
+ * @param {boolean} applyImmediately - Whether to apply the easing to keyframes right away.
+ * @param {Object} [targetSections] - Optional sections of the curve to apply to (e.g. incoming).
+ */
 function applyPresetData(pData, applyImmediately, targetSections) {
   ui.clearContextMenu();
   var prev = Object.assign({}, currentEasing);
@@ -562,7 +645,12 @@ function confirmPresetAction(title, message) {
   }
 }
 
-function handlePresetClick(libName, presetName, presetData, pressedTargetSections) {
+function handlePresetClick(
+  libName,
+  presetName,
+  presetData,
+  pressedTargetSections,
+) {
   var now = Date.now();
   var targetSections = pressedTargetSections || getHeldApplyTargetSections();
   var isDoubleClick =
@@ -723,6 +811,11 @@ function getExactPresetByName(text) {
   return null;
 }
 
+/**
+ * Parse an easing value from a text or object format.
+ * @param {string|Object} value - The raw value to parse.
+ * @returns {Object|null} The parsed {x1, y1, x2, y2} object, or null if invalid.
+ */
 function parseEasingValue(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === "object") {
@@ -831,6 +924,10 @@ function setCurrentEasingFromData(pData) {
   saveTabPreference();
 }
 
+/**
+ * Find the library and index of the currently selected preset based on current easing values.
+ * @returns {Object|null} An object with { libName, presetIndex } or null if not found.
+ */
 function getSelectedPresetLocation() {
   var libNames = Object.keys(libraries);
   for (var i = 0; i < libNames.length; i++) {
@@ -1039,16 +1136,23 @@ function attachPasteShortcutHandlers(widget) {
 
 // ============================================================================
 // HELPER FUNCTIONS
+// Helper methods for formatting, mathematical calculations, and parsing inputs.
 // ============================================================================
 
-// Create shared state object for mouse handlers
+/**
+ * Shared state object for mouse handlers.
+ * Abstracts and centralizes the dragging and curve states for both graphs.
+ */
 var sharedState = {
+  // References to global easing states
   get currentEasing() {
     return currentEasing;
   },
   get speedEasing() {
     return speedEasing;
   },
+
+  // Value graph drag state
   get isDragging() {
     return isDragging;
   },
@@ -1109,6 +1213,8 @@ var sharedState = {
   set shiftEngageCoords(v) {
     shiftEngageCoords = v;
   },
+
+  // Speed graph drag state
   get speedDragging() {
     return speedDragging;
   },
@@ -1446,6 +1552,9 @@ function updateTextInput() {
 }
 
 // Parse text input and update curve
+/**
+ * Parse the text input fields and update the current easing curve, then redraw graphs.
+ */
 function updateFromTextInput() {
   resetPresetDropdown();
   var vX1 = x1Input.getValue();
@@ -1460,6 +1569,9 @@ function updateFromTextInput() {
 }
 
 // Redraw both graphs
+/**
+ * Redraw both the value and speed graphs with the current easing configuration.
+ */
 function redrawGraphs() {
   drawCurve(
     graphCanvas,
@@ -1696,6 +1808,9 @@ function showEditorContextMenu() {
   ui.showContextMenu();
 }
 
+/**
+ * Display the main preset context menu for importing libraries, resetting, copying, and settings.
+ */
 function showPresetContextMenu() {
   ui.clearContextMenu();
 
@@ -2105,7 +2220,8 @@ function showLibraryContextMenu(libName) {
 }
 
 // ============================================================================
-// BUTTON EVENT HANDLERS
+// EVENT HANDLERS
+// Logic for button clicks, keyboard shortcuts, and search inputs.
 // ============================================================================
 
 applyButton.onClick = function () {
@@ -3790,6 +3906,9 @@ function safeSetHidden(widget, hidden) {
 }
 
 // Resize handler
+/**
+ * Handle resizing of the main UI window, adjusting graphs and preset layouts based on the view mode.
+ */
 function handleResize() {
   var newWidth = Math.max(
     ui.size().width,
