@@ -210,6 +210,38 @@ export function loadLastSelectedTab() {
     return loadPreference("easey_lastSelectedTab", null, "Could not load last selected tab");
 }
 
+export function savePresetsViewModeSetting(mode) {
+    savePreference("easey_presetsViewMode", mode, "Could not save presets view mode");
+}
+
+export function loadPresetsViewModeSetting() {
+    return loadPreference("easey_presetsViewMode", "tab", "Could not load presets view mode");
+}
+
+export function saveSplitGraphWidthSetting(width) {
+    savePreference("easey_splitGraphWidth", width, "Could not save split graph width");
+}
+
+export function loadSplitGraphWidthSetting() {
+    return loadPreference("easey_splitGraphWidth", 250, "Could not load split graph width");
+}
+
+export function saveSplitGraphHeightSetting(height) {
+    savePreference("easey_splitGraphHeight", height, "Could not save split graph height");
+}
+
+export function loadSplitGraphHeightSetting() {
+    return loadPreference("easey_splitGraphHeight", 180, "Could not load split graph height");
+}
+
+export function savePresetsOrientationLeftTopSetting(enabled) {
+    savePreference("easey_presetsOrientationLeftTop", enabled, "Could not save presets orientation Left/Top setting");
+}
+
+export function loadPresetsOrientationLeftTopSetting() {
+    return loadPreference("easey_presetsOrientationLeftTop", false, "Could not load presets orientation Left/Top setting");
+}
+
 export function copyCubicBezierToClipboard(currentEasing) {
     var text = "cubic-bezier(" + currentEasing.x1.toFixed(3) + ", " + 
                currentEasing.y1.toFixed(3) + ", " + 

@@ -73,6 +73,10 @@ import {
     saveClampIdenticalSetting, loadClampIdenticalSetting,
     saveLastCurveBehaviorSetting, loadLastCurveBehaviorSetting,
     saveLastSelectedTab, loadLastSelectedTab,
+    savePresetsViewModeSetting, loadPresetsViewModeSetting,
+    saveSplitGraphWidthSetting, loadSplitGraphWidthSetting,
+    saveSplitGraphHeightSetting, loadSplitGraphHeightSetting,
+    savePresetsOrientationLeftTopSetting, loadPresetsOrientationLeftTopSetting,
     copyCubicBezierToClipboard, copyEasingNumbersToClipboard, exportCurrentCurveToJson,
     exportLibraryToFlowFile, importLibraryFromFlowFile, mergeImportIntoLibrary,
     reorderPresetInLibrary, movePresetBetweenLibraries, reorderLibrary,
@@ -176,6 +180,12 @@ var livePresetsApplyEnabled = false;
 var confirmActionsEnabled = true;
 var clampHoldsEnabled = true;
 var lastCurveBehavior = 0; // 0 = Off, 1 = Before Edit, 2 = After Edit
+var presetsViewMode = "tab";
+var presetsOrientationLeftTop = false;
+var splitGraphWidth = 250;
+var splitGraphHeight = 180;
+var appliedGraphWidth = 250;
+var appliedGraphHeight = 180;
 
 // Last curve state
 var lastEasing = null;
@@ -261,6 +271,7 @@ graphModeBtn.setToolTip("Toggle Speed/Value Graph");
 // Quick Presets Dropdown
 var presetSearchInput = new ui.LineEdit();
 var presetSearchBtn = new ui.Button("▼");
+var presetSearchGroupContainer;
 
 var isUpdatingPresetSearchInputText = false;
 
@@ -1451,6 +1462,44 @@ function showPresetContextMenu() {
         }
     });
 
+    var presetsViewText = "Presets View: Tab";
+    if (presetsViewMode === "right") {
+        presetsViewText = presetsOrientationLeftTop ? "Presets View: Left" : "Presets View: Right";
+    } else if (presetsViewMode === "bottom") {
+        presetsViewText = presetsOrientationLeftTop ? "Presets View: Top" : "Presets View: Bottom";
+    }
+
+    ui.addMenuItem({
+        name: presetsViewText,
+        onMouseRelease: function() {
+            if (presetsViewMode === "tab") {
+                presetsViewMode = "right";
+            } else if (presetsViewMode === "right") {
+                presetsViewMode = "bottom";
+            } else {
+                presetsViewMode = "tab";
+            }
+            savePresetsViewModeSetting(presetsViewMode);
+            applyLayoutMode();
+        }
+    });
+
+    var presetsOrientationText = presetsOrientationLeftTop ? "Presets Orientation: Left/Top" : "Presets Orientation: Right/Bottom";
+    if (presetsViewMode === "right") {
+        presetsOrientationText = presetsOrientationLeftTop ? "Presets Orientation: Left" : "Presets Orientation: Right";
+    } else if (presetsViewMode === "bottom") {
+        presetsOrientationText = presetsOrientationLeftTop ? "Presets Orientation: Top" : "Presets Orientation: Bottom";
+    }
+
+    ui.addMenuItem({
+        name: presetsOrientationText,
+        onMouseRelease: function() {
+            presetsOrientationLeftTop = !presetsOrientationLeftTop;
+            savePresetsOrientationLeftTopSetting(presetsOrientationLeftTop);
+            applyLayoutMode();
+        }
+    });
+
     ui.addMenuItem({ name: "" });
 
     ui.addMenuItem({
@@ -1698,9 +1747,10 @@ if (lastCurveBehavior !== 0) {
 // ============================================================================
 
 // Create main layout
+var buttonRowContainer;
 var mainLayout = new ui.VLayout();
 mainLayout.setSpaceBetween(0);
-mainLayout.setMargins(3, 3, 3, 3);
+mainLayout.setMargins(2, 2, 2, 0);
 
 // Button row
 var buttonRow = new ui.HLayout();
@@ -1732,17 +1782,21 @@ function createPresetSearchGroup() {
     return container;
 }
 
-buttonRow.add(createPresetSearchGroup());
+presetSearchGroupContainer = createPresetSearchGroup();
+buttonRow.add(presetSearchGroupContainer);
 buttonRow.add(applyButton);
 buttonRow.setSpaceBetween(4);
-buttonRow.setMargins(4, 4, 4, 4);
+buttonRow.setMargins(4, 0, 4, 0);
+
+buttonRowContainer = new ui.Container();
+buttonRowContainer.setLayout(buttonRow);
 
 var tabView = new ui.TabView();
 
 // EDITOR TAB
 var editorTabLayout = new ui.VLayout();
 editorTabLayout.setSpaceBetween(0);
-editorTabLayout.setMargins(4, 4, 4, 4);
+editorTabLayout.setMargins(0, 0, 0, 0);
 
 // Helper to group label and input inside a single bordered container matching Cavalry's native input style
 function createInputGroup(labelName, coordinateIndex) {
@@ -1790,7 +1844,7 @@ function createInputGroup(labelName, coordinateIndex) {
 }
 
 var editorControlsLayout = new ui.HLayout();
-editorControlsLayout.setMargins(0, 0, 0, 0); // Explicitly zero out margins to prevent unequal default margins/padding
+editorControlsLayout.setMargins(4, 2, 4, 2);
 editorControlsLayout.setSpaceBetween(1);
 editorControlsLayout.add(graphModeBtn);
 editorControlsLayout.add(createInputGroup("X1", 0));
@@ -1798,8 +1852,6 @@ editorControlsLayout.add(createInputGroup("Y1", 1));
 editorControlsLayout.add(createInputGroup("X2", 2));
 editorControlsLayout.add(createInputGroup("Y2", 3));
 editorControlsLayout.add(mainContextButton);
-
-editorTabLayout.add(editorControlsLayout);
 
 var graphContainer = new ui.Container();
 var initGraphLayout = new ui.VLayout();
@@ -1825,8 +1877,7 @@ graphModeBtn.onClick = function() {
     redrawGraphs();
 };
 
-editorTabLayout.add(graphContainer);
-editorTabLayout.addStretch();
+
 
 // PRESETS TAB
 var presetsScroll = new ui.ScrollView();
@@ -2611,7 +2662,13 @@ function buildPresetsTab() {
         var headerContainer = new ui.Container();
         headerContainer.setLayout(headerLayout);
         headerContainer.useHoverEvents(true);
-        headerContainer.setFixedWidth(Math.max(280, ui.size().width - 40));
+        var headerW = Math.max(280, ui.size().width - 40);
+        if (presetsViewMode === "right") {
+            var availableWidth = ui.size().width - 22;
+            var presetsW = Math.max(100, availableWidth - splitGraphWidth);
+            headerW = Math.max(120, presetsW - 24);
+        }
+        headerContainer.setFixedWidth(headerW);
         headerContainer.setFixedHeight(22);
         applyLibStyle(headerContainer, false, false);
 
@@ -2792,13 +2849,186 @@ function buildPresetsTab() {
 }
 
 var presetsTabLayout = new ui.VLayout();
-presetsTabLayout.add(presetsScroll);
+presetsTabLayout.setSpaceBetween(0);
+presetsTabLayout.setMargins(2, 2, 2, 2);
+
+// Wrap tabView inside a container wrapper because TabView does not support setHidden
+var tabContainerWrapper = new ui.Container();
+var tabContainerWrapperLayout = new ui.VLayout();
+tabContainerWrapperLayout.setMargins(0, 0, 0, 0);
+tabContainerWrapperLayout.setSpaceBetween(0);
+tabContainerWrapperLayout.add(tabView);
+tabContainerWrapper.setLayout(tabContainerWrapperLayout);
 
 tabView.add("Editor", editorTabLayout);
 tabView.add("Presets", presetsTabLayout);
 
-mainLayout.add(tabView);
-mainLayout.add(buttonRow);
+// Initialize graph section container (groups graph + coordinates controls together)
+var graphSectionContainer = new ui.Container();
+var graphSectionLayout = new ui.VLayout();
+graphSectionLayout.setMargins(0, 0, 0, 0);
+graphSectionLayout.setSpaceBetween(4);
+graphSectionContainer.setLayout(graphSectionLayout);
+
+graphSectionLayout.add(editorControlsLayout);
+graphSectionLayout.add(graphContainer);
+
+// Initialize split layouts and containers
+var splitViewContainer = new ui.Container();
+var splitViewLayout = new ui.VLayout();
+splitViewLayout.setMargins(2, 2, 2, 0);
+splitViewLayout.setSpaceBetween(0);
+splitViewContainer.setLayout(splitViewLayout);
+
+// Right split container
+var rightSplitContainer = new ui.Container();
+var rightSplitLayout = new ui.HLayout();
+rightSplitLayout.setMargins(0, 0, 0, 0);
+rightSplitLayout.setSpaceBetween(0);
+rightSplitContainer.setLayout(rightSplitLayout);
+
+var rightSplitter = new ui.Container();
+rightSplitter.setFixedWidth(6);
+rightSplitter.setBackgroundColor("#181818");
+
+// Bottom split container
+var bottomSplitContainer = new ui.Container();
+var bottomSplitLayout = new ui.VLayout();
+bottomSplitLayout.setMargins(0, 0, 0, 0);
+bottomSplitLayout.setSpaceBetween(0);
+bottomSplitContainer.setLayout(bottomSplitLayout);
+
+var bottomSplitter = new ui.Container();
+bottomSplitter.setFixedHeight(6);
+bottomSplitter.setBackgroundColor("#181818");
+
+// Add split containers to the wrapper layout
+splitViewLayout.add(rightSplitContainer);
+splitViewLayout.add(bottomSplitContainer);
+
+// Splitter mouse handlers
+var isDraggingSplitter = false;
+var dragStartAbsX = 0;
+var dragStartAbsY = 0;
+var dragStartGraphSize = 0;
+
+rightSplitter.onMousePress = function(position, button) {
+    if (button === "left") {
+        isDraggingSplitter = true;
+        var absPoint = pointFromLocalPosition(rightSplitter, position)[0];
+        dragStartAbsX = absPoint.x;
+        dragStartGraphSize = splitGraphWidth;
+        rightSplitter.setBackgroundColor("#4ffd7a");
+    }
+};
+
+rightSplitter.onMouseMove = function(position) {
+    if (isDraggingSplitter) {
+        var absPoint = pointFromLocalPosition(rightSplitter, position)[0];
+        var dx = absPoint.x - dragStartAbsX;
+        
+        var newGraphWidth;
+        if (presetsOrientationLeftTop) {
+            newGraphWidth = dragStartGraphSize - dx;
+        } else {
+            newGraphWidth = dragStartGraphSize + dx;
+        }
+        
+        var windowWidth = ui.size().width;
+        var minGraphW = 305;
+        var minPresetsW = 150;
+        var maxGraphW = windowWidth - 22 - minPresetsW;
+        
+        splitGraphWidth = Math.max(minGraphW, Math.min(maxGraphW, newGraphWidth));
+        handleResize();
+    }
+};
+
+rightSplitter.onMouseRelease = function(position, button) {
+    if (button === "left") {
+        isDraggingSplitter = false;
+        rightSplitter.setBackgroundColor("#181818");
+        saveSplitGraphWidthSetting(splitGraphWidth);
+    }
+};
+
+bottomSplitter.onMousePress = function(position, button) {
+    if (button === "left") {
+        isDraggingSplitter = true;
+        var absPoint = pointFromLocalPosition(bottomSplitter, position)[0];
+        dragStartAbsY = absPoint.y;
+        dragStartGraphSize = splitGraphHeight;
+        bottomSplitter.setBackgroundColor("#4ffd7a");
+    }
+};
+
+bottomSplitter.onMouseMove = function(position) {
+    if (isDraggingSplitter) {
+        var absPoint = pointFromLocalPosition(bottomSplitter, position)[0];
+        var dy = absPoint.y - dragStartAbsY;
+        
+        var newGraphHeight;
+        if (presetsOrientationLeftTop) {
+            newGraphHeight = dragStartGraphSize - dy;
+        } else {
+            newGraphHeight = dragStartGraphSize + dy;
+        }
+        
+        var windowHeight = ui.size().height;
+        var minGraphH = 100;
+        var minPresetsH = 80;
+        var maxGraphH = windowHeight - 139; 
+        
+        splitGraphHeight = Math.max(minGraphH, Math.min(maxGraphH, newGraphHeight));
+        handleResize();
+    }
+};
+
+bottomSplitter.onMouseRelease = function(position, button) {
+    if (button === "left") {
+        isDraggingSplitter = false;
+        bottomSplitter.setBackgroundColor("#181818");
+        saveSplitGraphHeightSetting(splitGraphHeight);
+    }
+};
+
+function applyLayoutMode() {
+    if (presetsViewMode === "tab") {
+        editorTabLayout.add(graphSectionContainer);
+        presetsTabLayout.add(presetsScroll);
+        
+        var currentTab = tabView.currentTab();
+        activePastePanel = (currentTab === "Presets" || currentTab === 1) ? "presets" : "editor";
+    } else {
+        if (presetsViewMode === "right") {
+            if (presetsOrientationLeftTop) {
+                rightSplitLayout.add(presetsScroll);
+                rightSplitLayout.add(rightSplitter);
+                rightSplitLayout.add(graphSectionContainer);
+            } else {
+                rightSplitLayout.add(graphSectionContainer);
+                rightSplitLayout.add(rightSplitter);
+                rightSplitLayout.add(presetsScroll);
+            }
+        } else {
+            if (presetsOrientationLeftTop) {
+                bottomSplitLayout.add(presetsScroll);
+                bottomSplitLayout.add(bottomSplitter);
+                bottomSplitLayout.add(graphSectionContainer);
+            } else {
+                bottomSplitLayout.add(graphSectionContainer);
+                bottomSplitLayout.add(bottomSplitter);
+                bottomSplitLayout.add(presetsScroll);
+            }
+        }
+    }
+    
+    handleResize();
+}
+
+mainLayout.add(tabContainerWrapper);
+mainLayout.add(splitViewContainer);
+mainLayout.add(buttonRowContainer);
 
 ui.onKeyPress = function(key, event) {
     return handleKeyShortcut(key, event);
@@ -2809,15 +3039,26 @@ attachPasteShortcutHandlers(presetsScroll);
 
 presetsScroll.onMouseMove = function(position) {
     isContextMenuOpen = false;
+    if (presetsViewMode !== "tab") {
+        activePastePanel = "presets";
+    }
 };
 
 ui.add(mainLayout);
 ui.setBackgroundColor(GRAPH_COLORS.canvas);
 
 // Initialize display
+presetsViewMode = loadPresetsViewModeSetting();
+presetsOrientationLeftTop = loadPresetsOrientationLeftTopSetting();
+splitGraphWidth = loadSplitGraphWidthSetting();
+splitGraphHeight = loadSplitGraphHeightSetting();
+appliedGraphWidth = splitGraphWidth;
+appliedGraphHeight = splitGraphHeight;
+
 updateTextInput();
 redrawGraphs();
 buildPresetsTab();
+applyLayoutMode();
 
 // Tab change handler
 tabView.onTabChanged = function() {
@@ -2834,16 +3075,145 @@ tabView.onTabChanged = function() {
 ui.setMinimumWidth(320);
 ui.setMinimumHeight(265);
 
+function safeSetHidden(widget, hidden) {
+    if (!widget) return;
+    if (typeof widget.setHidden === "function") {
+        try {
+            widget.setHidden(hidden);
+            return;
+        } catch(e) {}
+    }
+    if (typeof widget.setVisible === "function") {
+        try {
+            widget.setVisible(!hidden);
+            return;
+        } catch(e) {}
+    }
+    if (hidden) {
+        if (typeof widget.setFixedWidth === "function") widget.setFixedWidth(0);
+        if (typeof widget.setFixedHeight === "function") widget.setFixedHeight(0);
+    }
+}
+
 // Resize handler
-ui.onResize = function() {
+function handleResize() {
     var newWidth = ui.size().width;
     var newHeight = ui.size().height;
     
-    var controlsHeight = 115;
-    var margin = 16;
+    var newGraphWidth, newGraphHeight;
+    var presetsContentWidth = Math.max(280, newWidth - 40);
     
-    var newGraphWidth = Math.max(150, newWidth - margin);
-    var newGraphHeight = Math.max(150, newHeight - controlsHeight);
+    if (presetsViewMode === "tab") {
+        safeSetHidden(tabContainerWrapper, false);
+        safeSetHidden(splitViewContainer, true);
+        safeSetHidden(rightSplitContainer, true);
+        safeSetHidden(bottomSplitContainer, true);
+
+        tabContainerWrapper.setFixedWidth(newWidth - 12);
+        tabContainerWrapper.setFixedHeight(newHeight - 50);
+        splitViewContainer.setFixedWidth(0);
+        splitViewContainer.setFixedHeight(0);
+        rightSplitContainer.setFixedWidth(0);
+        rightSplitContainer.setFixedHeight(0);
+        bottomSplitContainer.setFixedWidth(0);
+        bottomSplitContainer.setFixedHeight(0);
+
+        newGraphWidth = Math.max(150, newWidth - 12);
+        newGraphHeight = Math.max(100, newHeight - 112);
+        
+        graphSectionContainer.setFixedWidth(newWidth - 12);
+        graphSectionContainer.setFixedHeight(newHeight - 78);
+        graphContainer.setFixedWidth(newGraphWidth);
+        graphContainer.setFixedHeight(newGraphHeight);
+        
+        presetsScroll.setFixedWidth(newWidth - 16);
+        presetsScroll.setFixedHeight(newHeight - 82);
+    } else if (presetsViewMode === "right") {
+        safeSetHidden(tabContainerWrapper, true);
+        safeSetHidden(splitViewContainer, false);
+        
+        safeSetHidden(rightSplitContainer, false);
+        safeSetHidden(bottomSplitContainer, true);
+
+        splitViewContainer.setFixedWidth(newWidth - 12);
+        splitViewContainer.setFixedHeight(newHeight - 50);
+        
+        bottomSplitContainer.setFixedWidth(0);
+        bottomSplitContainer.setFixedHeight(0);
+
+        var minGraphW = 305;
+        var minPresetsW = 150;
+        var availableWidth = newWidth - 22;
+        
+        if (splitGraphWidth > availableWidth - minPresetsW) {
+            splitGraphWidth = Math.max(minGraphW, availableWidth - minPresetsW);
+        }
+        splitGraphWidth = Math.max(minGraphW, splitGraphWidth);
+        
+        newGraphWidth = splitGraphWidth;
+        newGraphHeight = Math.max(100, newHeight - 86);
+        
+        rightSplitContainer.setFixedWidth(newWidth - 16);
+        rightSplitContainer.setFixedHeight(newHeight - 52);
+        
+        graphSectionContainer.setFixedWidth(splitGraphWidth);
+        graphSectionContainer.setFixedHeight(newHeight - 52);
+        graphContainer.setFixedWidth(splitGraphWidth);
+        graphContainer.setFixedHeight(newGraphHeight);
+        
+        var presetsW = Math.max(minPresetsW, availableWidth - splitGraphWidth);
+        presetsScroll.setFixedWidth(presetsW);
+        presetsScroll.setFixedHeight(newHeight - 52);
+        
+        presetsContentWidth = Math.max(120, presetsW - 24);
+    } else if (presetsViewMode === "bottom") {
+        safeSetHidden(tabContainerWrapper, true);
+        safeSetHidden(splitViewContainer, false);
+        
+        safeSetHidden(bottomSplitContainer, false);
+        safeSetHidden(rightSplitContainer, true);
+
+        splitViewContainer.setFixedWidth(newWidth - 12);
+        splitViewContainer.setFixedHeight(newHeight - 50);
+        
+        rightSplitContainer.setFixedWidth(0);
+        rightSplitContainer.setFixedHeight(0);
+
+        var minGraphH = 100;
+        var minPresetsH = 80;
+        var availableHeight = newHeight - 59;
+        
+        if (splitGraphHeight > availableHeight - minPresetsH) {
+            splitGraphHeight = Math.max(minGraphH, availableHeight - minPresetsH);
+        }
+        splitGraphHeight = Math.max(minGraphH, splitGraphHeight);
+        
+        newGraphWidth = Math.max(150, newWidth - 16);
+        newGraphHeight = splitGraphHeight - 34;
+        
+        bottomSplitContainer.setFixedWidth(newWidth - 16);
+        bottomSplitContainer.setFixedHeight(newHeight - 52);
+        
+        graphSectionContainer.setFixedWidth(newWidth - 16);
+        graphSectionContainer.setFixedHeight(splitGraphHeight);
+        graphContainer.setFixedWidth(newGraphWidth);
+        graphContainer.setFixedHeight(newGraphHeight);
+        
+        var presetsH = Math.max(minPresetsH, availableHeight - splitGraphHeight);
+        presetsScroll.setFixedWidth(newWidth - 16);
+        presetsScroll.setFixedHeight(presetsH);
+    }
+    
+    if (presetSearchGroupContainer) {
+        var searchGroupWidth = Math.max(100, newWidth - 97);
+        presetSearchGroupContainer.setFixedWidth(searchGroupWidth);
+        presetSearchInput.setFixedWidth(searchGroupWidth - 28);
+    }
+    
+    if (buttonRowContainer) {
+        buttonRowContainer.setFixedWidth(newWidth - 12);
+        buttonRowContainer.setFixedHeight(24);
+    }
     
     graphWidth = newGraphWidth;
     graphHeight = newGraphHeight;
@@ -2856,25 +3226,31 @@ ui.onResize = function() {
     graphCanvas.setSize(graphWidth, graphHeight);
     speedGraphCanvas.setSize(speedGraphWidth, speedGraphHeight);
     
+    appliedGraphWidth = splitGraphWidth;
+    appliedGraphHeight = splitGraphHeight;
+    
     redrawGraphs();
 
     if (dragState && dragState.libraryItems) {
         dragState.libraryItems.forEach(function(entry) {
             if (entry.container && typeof entry.container.setFixedWidth === "function") {
-                entry.container.setFixedWidth(Math.max(280, newWidth - 40));
+                entry.container.setFixedWidth(presetsContentWidth);
             }
         });
     }
-};
+}
+ui.onResize = handleResize;
 
 // Show window
 ui.show();
 
 // Restore last selected tab
 isInitializingTab = true;
-var savedTab = loadLastSelectedTab();
-if (savedTab !== null) {
-    tabView.setTab(savedTab);
+if (presetsViewMode === "tab") {
+    var savedTab = loadLastSelectedTab();
+    if (savedTab !== null) {
+        tabView.setTab(savedTab);
+    }
 }
 
 // Reset init flag after delay
