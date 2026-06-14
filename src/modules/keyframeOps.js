@@ -22,6 +22,68 @@ function valuesAreIdentical(a, b) {
     return Math.abs(a - b) < IDENTICAL_VALUE_EPSILON;
 }
 
+function normalizeTargetSections(targetSections) {
+    if (!targetSections) {
+        return null;
+    }
+
+    return {
+        incoming: !!targetSections.incoming,
+        middle: !!targetSections.middle,
+        outgoing: !!targetSections.outgoing
+    };
+}
+
+function hasAnyTargetSection(targetSections) {
+    return !!(targetSections && (targetSections.incoming || targetSections.middle || targetSections.outgoing));
+}
+
+function findPreviousFrame(frames, frame) {
+    var previous = null;
+    for (var i = 0; i < frames.length; i++) {
+        if (frames[i] < frame && (previous === null || frames[i] > previous)) {
+            previous = frames[i];
+        }
+    }
+    return previous;
+}
+
+function findNextFrame(frames, frame) {
+    var next = null;
+    for (var i = 0; i < frames.length; i++) {
+        if (frames[i] > frame && (next === null || frames[i] < next)) {
+            next = frames[i];
+        }
+    }
+    return next;
+}
+
+function getSortedKeyframeTimes(layerId, attrId) {
+    try {
+        var times = api.getKeyframeTimes(layerId, attrId);
+        if (!times || !Array.isArray(times)) {
+            return [];
+        }
+        return times.slice().sort(function (a, b) { return a - b; });
+    } catch (e) {
+        return [];
+    }
+}
+
+function getValueAtFrame(layerId, attrId, frame, fallbackValue) {
+    var savedFrame = api.getFrame();
+    try {
+        api.setFrame(frame);
+        return api.get(layerId, attrId);
+    } catch (e) {
+        return fallbackValue;
+    } finally {
+        try {
+            api.setFrame(savedFrame);
+        } catch (restoreError) {}
+    }
+}
+
 /**
  * Frame times on the sibling position axis (for motion path detection).
  * @param {string} layerId
@@ -101,7 +163,9 @@ function unlockKeyframePair(keyframeIdA, keyframeIdB, frameA, frameB, attrId, la
         try {
             var keyData = api.get(keyframeId, 'data');
             if (keyData && keyData.interpolation !== 0) {
-                api.modifyKeyframe(keyframeId, 'interpolation', 0);
+                try {
+                    api.modifyKeyframe(keyframeId, 'interpolation', 0);
+                } catch (e) {}
                 keyData = api.get(keyframeId, 'data');
             }
             if (keyData) {
@@ -135,11 +199,12 @@ function unlockKeyframePair(keyframeIdA, keyframeIdB, frameA, frameB, attrId, la
 /**
  * Apply easing via setKeyframeVelocity for a contiguous motion-path run (both position.x and position.y).
  */
-function applyVelocityToMotionPathGroup(layerId, keyframeIds, frames, currentEasing) {
+function applyVelocityToMotionPathGroup(layerId, keyframeIds, frames, currentEasing, targetSections) {
     var n = frames.length;
     if (n < 2 || keyframeIds.length !== n) {
         return;
     }
+    var targets = normalizeTargetSections(targetSections);
 
     var valuesX = [];
     var valuesY = [];
@@ -176,12 +241,16 @@ function applyVelocityToMotionPathGroup(layerId, keyframeIds, frames, currentEas
             valuesAreIdentical(valuesY[j], valuesY[j + 1]);
 
         if (isHold) {
-            velocityByFrame[f0].rightSpeed = 0;
-            velocityByFrame[f0].rightInfluence = DEFAULT_RIGHT_INFLUENCE;
-            velocityByFrame[f1].leftSpeed = 0;
-            velocityByFrame[f1].leftInfluence = DEFAULT_LEFT_INFLUENCE;
-            flattenHandlesBetweenPair(layerId, 'position.x', f0, f1);
-            flattenHandlesBetweenPair(layerId, 'position.y', f0, f1);
+            if (!targets || targets.middle || targets.outgoing) {
+                velocityByFrame[f0].rightSpeed = 0;
+                velocityByFrame[f0].rightInfluence = DEFAULT_RIGHT_INFLUENCE;
+            }
+            if (!targets || targets.middle || targets.incoming) {
+                velocityByFrame[f1].leftSpeed = 0;
+                velocityByFrame[f1].leftInfluence = DEFAULT_LEFT_INFLUENCE;
+            }
+            flattenHandlesBetweenPair(layerId, 'position.x', f0, f1, targets);
+            flattenHandlesBetweenPair(layerId, 'position.y', f0, f1, targets);
         } else {
             var v = cubicBezierToVelocity(
                 currentEasing.x1,
@@ -189,10 +258,14 @@ function applyVelocityToMotionPathGroup(layerId, keyframeIds, frames, currentEas
                 currentEasing.x2,
                 currentEasing.y2
             );
-            velocityByFrame[f0].rightSpeed = v.rightSpeed;
-            velocityByFrame[f0].rightInfluence = v.rightInfluence;
-            velocityByFrame[f1].leftSpeed = v.leftSpeed;
-            velocityByFrame[f1].leftInfluence = v.leftInfluence;
+            if (!targets || targets.middle || targets.outgoing) {
+                velocityByFrame[f0].rightSpeed = v.rightSpeed;
+                velocityByFrame[f0].rightInfluence = v.rightInfluence;
+            }
+            if (!targets || targets.middle || targets.incoming) {
+                velocityByFrame[f1].leftSpeed = v.leftSpeed;
+                velocityByFrame[f1].leftInfluence = v.leftInfluence;
+            }
         }
     }
     for (var k = 0; k < n; k++) {
@@ -221,6 +294,96 @@ function applyVelocityToMotionPathGroup(layerId, keyframeIds, frames, currentEas
     }
 }
 
+function applyVelocityToSelectedMotionPathHandles(layerId, keyframeIds, frames, currentEasing, targetSections) {
+    var targets = normalizeTargetSections(targetSections);
+    if (!hasAnyTargetSection(targets)) {
+        return;
+    }
+
+    var allTimes = getSortedKeyframeTimes(layerId, 'position.x');
+    var savedFrame = api.getFrame();
+    var v = cubicBezierToVelocity(
+        currentEasing.x1,
+        currentEasing.y1,
+        currentEasing.x2,
+        currentEasing.y2
+    );
+
+    for (var i = 0; i < frames.length; i++) {
+        var frame = frames[i];
+        var kd = api.get(keyframeIds[i], 'data');
+        var vel = {
+            leftSpeed: kd && kd.leftSpeed !== undefined && kd.leftSpeed !== null ? kd.leftSpeed : DEFAULT_LEFT_SPEED,
+            leftInfluence:
+                kd && kd.leftInfluence !== undefined && kd.leftInfluence !== null
+                    ? kd.leftInfluence
+                    : DEFAULT_LEFT_INFLUENCE,
+            rightSpeed: kd && kd.rightSpeed !== undefined && kd.rightSpeed !== null ? kd.rightSpeed : DEFAULT_RIGHT_SPEED,
+            rightInfluence:
+                kd && kd.rightInfluence !== undefined && kd.rightInfluence !== null
+                    ? kd.rightInfluence
+                    : DEFAULT_RIGHT_INFLUENCE
+        };
+
+        if (targets.incoming) {
+            var previousFrame = findPreviousFrame(allTimes, frame);
+            var isIncomingHold = false;
+            if (previousFrame !== null && _clampHoldsEnabled) {
+                var prevX = getValueAtFrame(layerId, 'position.x', previousFrame, null);
+                var prevY = getValueAtFrame(layerId, 'position.y', previousFrame, null);
+                var curX = getValueAtFrame(layerId, 'position.x', frame, null);
+                var curY = getValueAtFrame(layerId, 'position.y', frame, null);
+                isIncomingHold = prevX !== null && prevY !== null && curX !== null && curY !== null &&
+                    valuesAreIdentical(prevX, curX) &&
+                    valuesAreIdentical(prevY, curY);
+            }
+            vel.leftSpeed = isIncomingHold ? 0 : v.leftSpeed;
+            vel.leftInfluence = isIncomingHold ? DEFAULT_LEFT_INFLUENCE : v.leftInfluence;
+        }
+
+        if (targets.outgoing) {
+            var nextFrame = findNextFrame(allTimes, frame);
+            var isOutgoingHold = false;
+            if (nextFrame !== null && _clampHoldsEnabled) {
+                var outCurX = getValueAtFrame(layerId, 'position.x', frame, null);
+                var outCurY = getValueAtFrame(layerId, 'position.y', frame, null);
+                var nextX = getValueAtFrame(layerId, 'position.x', nextFrame, null);
+                var nextY = getValueAtFrame(layerId, 'position.y', nextFrame, null);
+                isOutgoingHold = outCurX !== null && outCurY !== null && nextX !== null && nextY !== null &&
+                    valuesAreIdentical(outCurX, nextX) &&
+                    valuesAreIdentical(outCurY, nextY);
+            }
+            vel.rightSpeed = isOutgoingHold ? 0 : v.rightSpeed;
+            vel.rightInfluence = isOutgoingHold ? DEFAULT_RIGHT_INFLUENCE : v.rightInfluence;
+        }
+
+        try {
+            api.setKeyframeVelocity(layerId, {
+                'position.x': {
+                    frame: frame,
+                    leftSpeed: vel.leftSpeed,
+                    rightSpeed: vel.rightSpeed,
+                    leftInfluence: vel.leftInfluence,
+                    rightInfluence: vel.rightInfluence
+                },
+                'position.y': {
+                    frame: frame,
+                    leftSpeed: vel.leftSpeed,
+                    rightSpeed: vel.rightSpeed,
+                    leftInfluence: vel.leftInfluence,
+                    rightInfluence: vel.rightInfluence
+                }
+            });
+        } catch (e) {
+            console.log('Error setKeyframeVelocity at frame ' + frame + ':', e.message);
+        }
+    }
+
+    try {
+        api.setFrame(savedFrame);
+    } catch (restoreError) {}
+}
+
 function velocityRunKey(layerId, frame) {
     return layerId + '|' + frame;
 }
@@ -239,17 +402,13 @@ function ensureBezierInterpolation(keyframeId, attrId, layerId, frame) {
         if (keyData.interpolation !== 0) {
             try {
                 api.modifyKeyframe(keyframeId, 'interpolation', 0);
-            } catch (e) {
-                console.log("Could not set interpolation to bezier:", e.message);
-            }
+            } catch (e) {}
         }
         
         try {
             api.set(keyframeId, 'locked', false);
             api.set(keyframeId, 'weightLocked', false);
-        } catch (e) {
-            console.log("Failed to unlock keyframe tangents with api.set():", e.message);
-        }
+        } catch (e) {}
         
         return true;
     } catch (error) {
@@ -262,36 +421,40 @@ function ensureBezierInterpolation(keyframeId, attrId, layerId, frame) {
  * Zero out the tangent handles between two keyframes (outgoing of first, incoming of second).
  * Uses angle=0, weight=0 to flatten without disturbing the other side's easing.
  */
-function flattenHandlesBetweenPair(layerId, attrId, frameA, frameB) {
+function flattenHandlesBetweenPair(layerId, attrId, frameA, frameB, targets) {
     var unlocked = { angleLocked: false, weightLocked: false };
     try {
-        var outObj = {};
-        outObj[attrId] = {
-            frame: frameA,
-            outHandle: true,
-            angle: 0,
-            weight: 0,
-            ...unlocked
-        };
-        api.modifyKeyframeTangent(layerId, outObj);
+        if (!targets || targets.middle || targets.outgoing) {
+            var outObj = {};
+            outObj[attrId] = {
+                frame: frameA,
+                outHandle: true,
+                angle: 0,
+                weight: 0,
+                ...unlocked
+            };
+            api.modifyKeyframeTangent(layerId, outObj);
+        }
     } catch (e) {}
     try {
-        var inObj = {};
-        inObj[attrId] = {
-            frame: frameB,
-            inHandle: true,
-            angle: 0,
-            weight: 0,
-            ...unlocked
-        };
-        api.modifyKeyframeTangent(layerId, inObj);
+        if (!targets || targets.middle || targets.incoming) {
+            var inObj = {};
+            inObj[attrId] = {
+                frame: frameB,
+                inHandle: true,
+                angle: 0,
+                weight: 0,
+                ...unlocked
+            };
+            api.modifyKeyframeTangent(layerId, inObj);
+        }
     } catch (e) {}
 }
 
 /**
  * Apply easing to a single pair of keyframes
  */
-function applyEasingToKeyframePair(currentKeyId, nextKeyId, currentKeyData, nextKeyData, cavalryHandles, attrId, layerId, currentFrame, currentValue, nextFrame, nextValue) {
+function applyEasingToKeyframePair(currentKeyId, nextKeyId, currentKeyData, nextKeyData, cavalryHandles, attrId, layerId, currentFrame, currentValue, nextFrame, nextValue, targets) {
     try {
         currentKeyData = api.get(currentKeyId, 'data');
         nextKeyData = api.get(nextKeyId, 'data');
@@ -299,7 +462,7 @@ function applyEasingToKeyframePair(currentKeyId, nextKeyId, currentKeyData, next
         try {
             var unlocked = { angleLocked: false, weightLocked: false };
             
-            if (currentKeyData) {
+            if (currentKeyData && (!targets || targets.middle || targets.outgoing)) {
                 var tangentObj1 = {};
                 tangentObj1[attrId] = {
                     frame: currentFrame,
@@ -312,7 +475,7 @@ function applyEasingToKeyframePair(currentKeyId, nextKeyId, currentKeyData, next
                 api.modifyKeyframeTangent(layerId, tangentObj1);
             }
             
-            if (nextKeyData) {
+            if (nextKeyData && (!targets || targets.middle || targets.incoming)) {
                 var tangentObj2 = {};
                 tangentObj2[attrId] = {
                     frame: nextFrame,
@@ -327,12 +490,12 @@ function applyEasingToKeyframePair(currentKeyId, nextKeyId, currentKeyData, next
             
         } catch (e) {
             try {
-                if (currentKeyData && currentKeyData.rightBez) {
+                if (currentKeyData && currentKeyData.rightBez && (!targets || targets.middle || targets.outgoing)) {
                     api.modifyKeyframe(currentKeyId, 'rightBez.x', cavalryHandles.outHandleX);
                     api.modifyKeyframe(currentKeyId, 'rightBez.y', cavalryHandles.outHandleY);
                 }
                 
-                if (nextKeyData && nextKeyData.leftBez) {
+                if (nextKeyData && nextKeyData.leftBez && (!targets || targets.middle || targets.incoming)) {
                     api.modifyKeyframe(nextKeyId, 'leftBez.x', cavalryHandles.inHandleX);
                     api.modifyKeyframe(nextKeyId, 'leftBez.y', cavalryHandles.inHandleY);
                 }
@@ -364,7 +527,9 @@ function applyEasingToSingleKeyframe(keyframeId, attrId, layerId, frame, value, 
         
         var keyData = api.get(keyframeId, 'data');
         if (keyData && keyData.interpolation !== 0) {
-            api.modifyKeyframe(keyframeId, 'interpolation', 0);
+            try {
+                api.modifyKeyframe(keyframeId, 'interpolation', 0);
+            } catch (e) {}
             keyData = api.get(keyframeId, 'data');
         }
         
@@ -412,6 +577,202 @@ function applyEasingToSingleKeyframe(keyframeId, attrId, layerId, frame, value, 
         console.log("Error applying easing to single keyframe:", error.message);
         return false;
     }
+}
+
+function applyEasingToKeyframeHandle(keyframeId, attrId, layerId, frame, currentEasing, handleSide) {
+    try {
+        var allTimes = getSortedKeyframeTimes(layerId, attrId);
+        var value = getValueAtFrame(layerId, attrId, frame, 0);
+        var referenceFrame = handleSide === 'incoming' ? findPreviousFrame(allTimes, frame) : findNextFrame(allTimes, frame);
+        var referenceValue = referenceFrame !== null ? getValueAtFrame(layerId, attrId, referenceFrame, value) : null;
+
+        ensureBezierInterpolation(keyframeId, attrId, layerId, frame);
+
+        var frameDiff = 30;
+        var valueDiff = 100;
+        if (referenceFrame !== null) {
+            if (handleSide === 'incoming') {
+                frameDiff = frame - referenceFrame;
+                valueDiff = value - referenceValue;
+            } else {
+                frameDiff = referenceFrame - frame;
+                valueDiff = referenceValue - value;
+            }
+        }
+
+        if (Math.abs(frameDiff) < 0.001) {
+            frameDiff = 30;
+        }
+
+        var cavalryHandles = cubicBezierToCavalry(
+            currentEasing.x1,
+            currentEasing.y1,
+            currentEasing.x2,
+            currentEasing.y2,
+            frameDiff,
+            valueDiff
+        );
+
+        var unlocked = { angleLocked: false, weightLocked: false };
+        var tangentObj = {};
+
+        if (handleSide === 'incoming') {
+            tangentObj[attrId] = {
+                frame: frame,
+                inHandle: true,
+                outHandle: false,
+                xValue: frame + cavalryHandles.inHandleX,
+                yValue: value + cavalryHandles.inHandleY,
+                ...unlocked
+            };
+        } else {
+            tangentObj[attrId] = {
+                frame: frame,
+                inHandle: false,
+                outHandle: true,
+                xValue: frame + cavalryHandles.outHandleX,
+                yValue: value + cavalryHandles.outHandleY,
+                ...unlocked
+            };
+        }
+
+        api.modifyKeyframeTangent(layerId, tangentObj);
+        return true;
+    } catch (error) {
+        console.log("Error applying easing to keyframe " + handleSide + " handle:", error.message);
+        return false;
+    }
+}
+
+function applyEasingToFramePair(layerId, attrId, currentFrame, nextFrame, currentEasing, targetSections) {
+    try {
+        var targets = normalizeTargetSections(targetSections);
+        var frameDiff = nextFrame - currentFrame;
+        if (Math.abs(frameDiff) < 0.001) {
+            return false;
+        }
+
+        var currentValue = getValueAtFrame(layerId, attrId, currentFrame, 0);
+        var nextValue = getValueAtFrame(layerId, attrId, nextFrame, currentValue);
+        var valueDiff = nextValue - currentValue;
+        var cavalryHandles = cubicBezierToCavalry(
+            currentEasing.x1,
+            currentEasing.y1,
+            currentEasing.x2,
+            currentEasing.y2,
+            frameDiff,
+            valueDiff
+        );
+        var unlocked = { angleLocked: false, weightLocked: false };
+        var success = false;
+
+        if (!targets || targets.middle || targets.outgoing) {
+            var tangentObjOut = {};
+            tangentObjOut[attrId] = {
+                frame: currentFrame,
+                inHandle: false,
+                outHandle: true,
+                xValue: currentFrame + cavalryHandles.outHandleX,
+                yValue: currentValue + cavalryHandles.outHandleY,
+                ...unlocked
+            };
+            api.modifyKeyframeTangent(layerId, tangentObjOut);
+            success = true;
+        }
+
+        if (!targets || targets.middle || targets.incoming) {
+            var tangentObjIn = {};
+            tangentObjIn[attrId] = {
+                frame: nextFrame,
+                inHandle: true,
+                outHandle: false,
+                xValue: nextFrame + cavalryHandles.inHandleX,
+                yValue: nextValue + cavalryHandles.inHandleY,
+                ...unlocked
+            };
+            api.modifyKeyframeTangent(layerId, tangentObjIn);
+            success = true;
+        }
+
+        return success;
+    } catch (error) {
+        console.log("Error applying easing to frame pair:", error.message);
+        return false;
+    }
+}
+
+function applyBoundaryTargetSections(group, currentEasing, targetSections) {
+    var targets = normalizeTargetSections(targetSections);
+    if (!targets || (!targets.incoming && !targets.outgoing)) {
+        return 0;
+    }
+
+    var processed = 0;
+    var frames = group.frames;
+    if (!frames || frames.length < 1) {
+        return processed;
+    }
+
+    var allTimes = getSortedKeyframeTimes(group.layerId, group.attrId);
+    var firstSelectedFrame = frames[0];
+    var lastSelectedFrame = frames[frames.length - 1];
+
+    if (targets.incoming) {
+        var previousFrame = findPreviousFrame(allTimes, firstSelectedFrame);
+        if (previousFrame !== null) {
+            if (applyEasingToFramePair(
+                group.layerId,
+                group.attrId,
+                previousFrame,
+                firstSelectedFrame,
+                currentEasing,
+                { incoming: true }
+            )) {
+                processed++;
+            }
+        } else if (group.keyframeIds && group.keyframeIds.length > 0) {
+            if (applyEasingToKeyframeHandle(
+                group.keyframeIds[0],
+                group.attrId,
+                group.layerId,
+                firstSelectedFrame,
+                currentEasing,
+                'incoming'
+            )) {
+                processed++;
+            }
+        }
+    }
+
+    if (targets.outgoing) {
+        var nextFrame = findNextFrame(allTimes, lastSelectedFrame);
+        if (nextFrame !== null) {
+            if (applyEasingToFramePair(
+                group.layerId,
+                group.attrId,
+                lastSelectedFrame,
+                nextFrame,
+                currentEasing,
+                { outgoing: true }
+            )) {
+                processed++;
+            }
+        } else if (group.keyframeIds && group.keyframeIds.length > 0) {
+            var lastKeyIndex = group.keyframeIds.length - 1;
+            if (applyEasingToKeyframeHandle(
+                group.keyframeIds[lastKeyIndex],
+                group.attrId,
+                group.layerId,
+                lastSelectedFrame,
+                currentEasing,
+                'outgoing'
+            )) {
+                processed++;
+            }
+        }
+    }
+
+    return processed;
 }
 
 /**
@@ -608,10 +969,12 @@ export function getEasingFromKeyframes(currentEasing) {
 /**
  * Apply easing to selected keyframes
  * @param {Object} currentEasing - Current easing values to apply
+ * @param {Object|null} targetSections - Optional targeted sections { incoming, middle, outgoing }
  * @returns {boolean} Success status
  */
-export function applyEasingToKeyframes(currentEasing) {
+export function applyEasingToKeyframes(currentEasing, targetSections) {
     try {
+        var targets = normalizeTargetSections(targetSections);
         var selectedKeyframes = api.getSelectedKeyframes();
         var keyframeIds = api.getSelectedKeyframeIds();
         
@@ -657,12 +1020,22 @@ export function applyEasingToKeyframes(currentEasing) {
             api.setFrame(keyframeFrame);
             var value = api.get(layerId, attrId);
             
-            var success = applyEasingToSingleKeyframe(keyframeId, attrId, layerId, keyframeFrame, value, currentEasing);
+            var success = false;
+            if (!targets || targets.middle) {
+                success = applyEasingToSingleKeyframe(keyframeId, attrId, layerId, keyframeFrame, value, currentEasing);
+            } else {
+                if (targets.incoming) {
+                    success = applyEasingToKeyframeHandle(keyframeId, attrId, layerId, keyframeFrame, currentEasing, 'incoming') || success;
+                }
+                if (targets.outgoing) {
+                    success = applyEasingToKeyframeHandle(keyframeId, attrId, layerId, keyframeFrame, currentEasing, 'outgoing') || success;
+                }
+            }
             
             api.setFrame(currentFrame);
             
             if (success) {
-                console.log("Applied easing to single keyframe's incoming and outgoing handles");
+                console.log(targets ? "Applied targeted easing to single keyframe" : "Applied easing to single keyframe's incoming and outgoing handles");
             }
             
             return success;
@@ -672,7 +1045,7 @@ export function applyEasingToKeyframes(currentEasing) {
         var attributeGroups = {};
         
         for (let [fullAttributePath, frames] of Object.entries(selectedKeyframes)) {
-            if (frames.length >= 2) {
+            if (frames.length >= (targets && !targets.middle ? 1 : 2)) {
                 var hashIndex = fullAttributePath.indexOf('#');
                 if (hashIndex === -1) continue;
                 
@@ -692,19 +1065,34 @@ export function applyEasingToKeyframes(currentEasing) {
                     }
                 }
                 
-                if (attributeKeyframeIds.length >= 2) {
+                if (attributeKeyframeIds.length >= (targets && !targets.middle ? 1 : 2)) {
+                    var sortedFrames = frames.slice().sort(function (a, b) { return a - b; });
+                    var sortedKeyframeIds = attributeKeyframeIds.slice();
+                    if (sortedKeyframeIds.length === sortedFrames.length && frames.length === sortedFrames.length) {
+                        var pairItems = [];
+                        for (var pairIndex = 0; pairIndex < sortedFrames.length; pairIndex++) {
+                            pairItems.push({
+                                frame: frames[pairIndex],
+                                id: attributeKeyframeIds[pairIndex]
+                            });
+                        }
+                        pairItems.sort(function (a, b) { return a.frame - b.frame; });
+                        for (var sortedIndex = 0; sortedIndex < pairItems.length; sortedIndex++) {
+                            sortedKeyframeIds[sortedIndex] = pairItems[sortedIndex].id;
+                        }
+                    }
                     attributeGroups[fullAttributePath] = {
                         layerId: layerId,
                         attrId: attrId,
-                        frames: frames.sort((a, b) => a - b),
-                        keyframeIds: attributeKeyframeIds
+                        frames: sortedFrames,
+                        keyframeIds: sortedKeyframeIds
                     };
                 }
             }
         }
         
         if (Object.keys(attributeGroups).length === 0) {
-            console.log("Error: No valid attribute groups found with 2+ keyframes");
+            console.log("Error: No valid attribute groups found");
             return false;
         }
         
@@ -739,13 +1127,23 @@ export function applyEasingToKeyframes(currentEasing) {
                     }
                     var idsSlice = group.keyframeIds.slice(runStart, runEnd + 1);
                     var framesSlice = group.frames.slice(runStart, runEnd + 1);
-                    applyVelocityToMotionPathGroup(group.layerId, idsSlice, framesSlice, currentEasing);
+                    applyVelocityToMotionPathGroup(group.layerId, idsSlice, framesSlice, currentEasing, targets);
                     for (var fj = runStart; fj <= runEnd; fj++) {
                         velocityApplied.add(velocityRunKey(group.layerId, group.frames[fj]));
                     }
                 }
             } catch (velocityGroupError) {
                 console.log('Error applying motion path velocity for ' + attributePath + ':', velocityGroupError.message);
+            }
+        }
+
+        if (targets && (targets.incoming || targets.outgoing)) {
+            for (let [targetedAttributePath, targetedGroup] of Object.entries(attributeGroups)) {
+                try {
+                    totalProcessed += applyBoundaryTargetSections(targetedGroup, currentEasing, targets);
+                } catch (targetGroupError) {
+                    console.log('Error processing targeted handles for ' + targetedAttributePath + ':', targetGroupError.message);
+                }
             }
         }
 
@@ -781,7 +1179,7 @@ export function applyEasingToKeyframes(currentEasing) {
                     var nextValue = api.get(group.layerId, group.attrId);
 
                     if (_clampHoldsEnabled && valuesAreIdentical(currentValue, nextValue)) {
-                        flattenHandlesBetweenPair(group.layerId, group.attrId, currentFrame, nextFrame);
+                        flattenHandlesBetweenPair(group.layerId, group.attrId, currentFrame, nextFrame, targets);
                         totalProcessed++;
                         continue;
                     }
@@ -811,7 +1209,8 @@ export function applyEasingToKeyframes(currentEasing) {
                         currentFrame,
                         currentValue,
                         nextFrame,
-                        nextValue
+                        nextValue,
+                        targets
                     );
 
                     totalProcessed++;
