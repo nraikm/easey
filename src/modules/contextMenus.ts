@@ -1,5 +1,27 @@
+var pendingContextMenuTimer = null;
+var pendingContextMenuToken = 0;
+
 export function showContextMenu() {
-  ui.showContextMenu();
+  pendingContextMenuToken++;
+  var token = pendingContextMenuToken;
+
+  if (pendingContextMenuTimer) {
+    try {
+      pendingContextMenuTimer.stop();
+    } catch (e) {}
+    pendingContextMenuTimer = null;
+  }
+
+  pendingContextMenuTimer = new api.Timer({
+    onTimeout: function () {
+      if (token !== pendingContextMenuToken) return;
+      pendingContextMenuTimer = null;
+      ui.showContextMenu();
+    },
+  });
+  pendingContextMenuTimer.setInterval(15);
+  pendingContextMenuTimer.setRepeating(false);
+  pendingContextMenuTimer.start();
 }
 
 export function confirmMenuAction(enabled, title, message) {
