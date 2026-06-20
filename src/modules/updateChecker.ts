@@ -37,7 +37,7 @@ export function checkForUpdate(
   githubRepo,
   scriptName,
   currentVersion,
-  callback,
+  callback?,
 ) {
   var now = new Date().getTime();
   var oneDayAgo = now - 24 * 60 * 60 * 1000;
@@ -46,7 +46,7 @@ export function checkForUpdate(
 
   // Check if we have cached data
   if (api.hasPreferenceObject(scriptName + "_update_check")) {
-    var prefs = api.getPreferenceObject(scriptName + "_update_check");
+    var prefs: any = api.getPreferenceObject(scriptName + "_update_check");
     cachedLatestVersion = prefs.latestVersion;
 
     // If we checked recently, use cached version (don't fetch from GitHub)

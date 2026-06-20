@@ -7,7 +7,7 @@ import {
   cubicBezierToVelocity,
   getCompositionFrameRate,
   framesToMilliseconds,
-} from "./conversions.js";
+} from "./conversions.ts";
 
 var DEFAULT_LEFT_SPEED = 0.0;
 var DEFAULT_LEFT_INFLUENCE = 0.333;
@@ -185,7 +185,7 @@ function unlockKeyframePair(
     var keyframeId = items[p].id;
     var frame = items[p].frame;
     try {
-      var keyData = api.get(keyframeId, "data");
+      var keyData: any = api.get(keyframeId, "data");
       if (keyData && keyData.interpolation !== 0) {
         try {
           api.modifyKeyframe(keyframeId, "interpolation", 0);
@@ -485,7 +485,7 @@ function ensureBezierInterpolation(keyframeId, attrId, layerId, frame) {
  * Zero out the tangent handles between two keyframes (outgoing of first, incoming of second).
  * Uses angle=0, weight=0 to flatten without disturbing the other side's easing.
  */
-function flattenHandlesBetweenPair(layerId, attrId, frameA, frameB, targets) {
+function flattenHandlesBetweenPair(layerId, attrId, frameA, frameB, targets?) {
   var unlocked = { angleLocked: false, weightLocked: false };
   try {
     if (!targets || targets.middle || targets.outgoing) {
@@ -948,7 +948,7 @@ export function getEasingFromKeyframes(currentEasing) {
       var layerId = attrPath.substring(0, dotAfterHash);
       var attrId = attrPath.substring(dotAfterHash + 1);
 
-      var keyData = api.get(keyframeId, "data");
+      var keyData: any = api.get(keyframeId, "data");
       if (!keyData) {
         console.log("Error: Could not get keyframe data");
         return false;
@@ -988,7 +988,7 @@ export function getEasingFromKeyframes(currentEasing) {
     }
 
     // Collect all attribute groups with 2+ keyframes
-    var attributeGroups = {};
+    var attributeGroups: any = {};
 
     for (let [fullAttributePath, frames] of Object.entries(selectedKeyframes)) {
       if (frames.length >= 2) {
@@ -1032,7 +1032,7 @@ export function getEasingFromKeyframes(currentEasing) {
     var pairCount = 0;
     var currentFrame = api.getFrame();
 
-    for (let [attributePath, group] of Object.entries(attributeGroups)) {
+    for (let [attributePath, group] of Object.entries(attributeGroups) as any) {
       for (var i = 0; i < group.keyframeIds.length - 1; i++) {
         var currentKeyId = group.keyframeIds[i];
         var nextKeyId = group.keyframeIds[i + 1];
@@ -1062,9 +1062,9 @@ export function getEasingFromKeyframes(currentEasing) {
           frameEndData = firstKeyData;
         }
 
-        var outHandleX = null,
+        let outHandleX = null,
           outHandleY = null;
-        var inHandleX = null,
+        let inHandleX = null,
           inHandleY = null;
 
         if (frameZeroData && frameZeroData.rightBez) {
@@ -1132,7 +1132,7 @@ export function getEasingFromKeyframes(currentEasing) {
  * @param {Object|null} targetSections - Optional targeted sections { incoming, middle, outgoing }
  * @returns {boolean} Success status
  */
-export function applyEasingToKeyframes(currentEasing, targetSections) {
+export function applyEasingToKeyframes(currentEasing, targetSections?) {
   try {
     var targets = normalizeTargetSections(targetSections);
     var selectedKeyframes = api.getSelectedKeyframes();
@@ -1229,7 +1229,7 @@ export function applyEasingToKeyframes(currentEasing, targetSections) {
     }
 
     // Group keyframes by attribute path
-    var attributeGroups = {};
+    var attributeGroups: any = {};
 
     for (let [fullAttributePath, frames] of Object.entries(selectedKeyframes)) {
       if (frames.length >= (targets && !targets.middle ? 1 : 2)) {
@@ -1305,7 +1305,7 @@ export function applyEasingToKeyframes(currentEasing, targetSections) {
     var velocityApplied = new Set();
 
     // Pass 1: motion path segments use setKeyframeVelocity (both axes); avoids modifyKeyframeTangent on paths
-    for (let [attributePath, group] of Object.entries(attributeGroups)) {
+    for (let [attributePath, group] of Object.entries(attributeGroups) as any) {
       try {
         var isPositionAttr =
           group.attrId === "position.x" || group.attrId === "position.y";
@@ -1363,7 +1363,7 @@ export function applyEasingToKeyframes(currentEasing, targetSections) {
     if (targets && (targets.incoming || targets.outgoing)) {
       for (let [targetedAttributePath, targetedGroup] of Object.entries(
         attributeGroups,
-      )) {
+      ) as any) {
         try {
           totalProcessed += applyBoundaryTargetSections(
             targetedGroup,
@@ -1382,7 +1382,7 @@ export function applyEasingToKeyframes(currentEasing, targetSections) {
     }
 
     // Pass 2: standard tangent easing per pair (skip pairs that are motion path segments)
-    for (let [attributePath, group] of Object.entries(attributeGroups)) {
+    for (let [attributePath, group] of Object.entries(attributeGroups) as any) {
       try {
         var siblingSetForTangent = getSiblingKeyframeTimesSet(
           group.layerId,
@@ -1393,7 +1393,7 @@ export function applyEasingToKeyframes(currentEasing, targetSections) {
           var currentKeyId = group.keyframeIds[i];
           var nextKeyId = group.keyframeIds[i + 1];
 
-          var currentFrame = group.frames[i];
+          var currentFrame: number = group.frames[i];
           var nextFrame = group.frames[i + 1];
           var frameDiff = nextFrame - currentFrame;
 
@@ -1495,7 +1495,7 @@ export function fixHoldPaths() {
       return false;
     }
 
-    var attributeGroups = {};
+    var attributeGroups: any = {};
     for (let [fullAttributePath, frames] of Object.entries(selectedKeyframes)) {
       if (frames.length < 2) continue;
       var hashIndex = fullAttributePath.indexOf("#");
@@ -1530,7 +1530,7 @@ export function fixHoldPaths() {
     var savedFrame = api.getFrame();
     var velocityFixed = new Set();
 
-    for (let [attributePath, group] of Object.entries(attributeGroups)) {
+    for (let [attributePath, group] of Object.entries(attributeGroups) as any) {
       var siblingTimes = getSiblingKeyframeTimesSet(
         group.layerId,
         group.attrId,
@@ -1763,7 +1763,7 @@ export function getKeyframeInfo() {
       var firstKeyData = api.get(keyframeIds[0], "data");
       var secondKeyData = api.get(keyframeIds[1], "data");
 
-      var kf1Data = api.get(keyframeIds[0], "data");
+      var kf1Data: any = api.get(keyframeIds[0], "data");
       var kf2Data = api.get(keyframeIds[1], "data");
 
       var frameZeroData, frameEndData;

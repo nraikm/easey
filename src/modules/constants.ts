@@ -1,3 +1,12 @@
+export var GITHUB_REPO = "sammularczyk/Easey";
+export var SCRIPT_NAME = "Easey";
+export var CURRENT_VERSION = "1.4.1";
+
+export function calculateDynamicPadding(w, h) {
+  var minDim = Math.min(w, h);
+  return Math.max(26, Math.min(40, Math.round(minDim * 0.12)));
+}
+
 // Default library collections
 export var DEFAULT_LIBRARIES = {
   "Penner Easings": {

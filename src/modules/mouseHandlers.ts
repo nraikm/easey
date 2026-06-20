@@ -1,14 +1,98 @@
+export function createMouseSharedState(state) {
+  return {
+    get currentEasing() {
+      return state.currentEasing;
+    },
+    get speedEasing() {
+      return state.speedEasing;
+    },
+    get isDragging() {
+      return state.isDragging;
+    },
+    set isDragging(v) {
+      state.isDragging = v;
+    },
+    get dragHandle() {
+      return state.dragHandle;
+    },
+    set dragHandle(v) {
+      state.dragHandle = v;
+    },
+    get dragStartPosition() {
+      return state.dragStartPosition;
+    },
+    set dragStartPosition(v) {
+      state.dragStartPosition = v;
+    },
+    get dragStartEasing() {
+      return state.dragStartEasing;
+    },
+    set dragStartEasing(v) {
+      state.dragStartEasing = v;
+    },
+    get axisConstraint() {
+      return state.axisConstraint;
+    },
+    set axisConstraint(v) {
+      state.axisConstraint = v;
+    },
+    get wasShiftHeld() {
+      return state.wasShiftHeld;
+    },
+    set wasShiftHeld(v) {
+      state.wasShiftHeld = v;
+    },
+    get lockedAngle() {
+      return state.lockedAngle;
+    },
+    set lockedAngle(v) {
+      state.lockedAngle = v;
+    },
+    get lockedLength() {
+      return state.lockedLength;
+    },
+    set lockedLength(v) {
+      state.lockedLength = v;
+    },
+    get lastAxisConstraint() {
+      return state.lastAxisConstraint;
+    },
+    set lastAxisConstraint(v) {
+      state.lastAxisConstraint = v;
+    },
+    get shiftEngageCoords() {
+      return state.shiftEngageCoords;
+    },
+    set shiftEngageCoords(v) {
+      state.shiftEngageCoords = v;
+    },
+    get speedDragging() {
+      return state.speedDragging;
+    },
+    set speedDragging(v) {
+      state.speedDragging = v;
+    },
+    get speedDragHandle() {
+      return state.speedDragHandle;
+    },
+    set speedDragHandle(v) {
+      state.speedDragHandle = v;
+    },
+  };
+}
+
+
 // Mouse event handler module
 // Handles mouse interactions for both value and speed graph canvases
 
-import { speedToCubicBezier } from "./conversions.js";
+import { speedToCubicBezier } from "./conversions.ts";
 import {
   getPlotBounds,
   snapToGrid,
   pixelToNormalized,
   getHandleOrigin,
   getGridDivisions,
-} from "./graphGeometry.js";
+} from "./graphGeometry.ts";
 
 function getEasingCoords(state, dragHandle) {
   if (dragHandle === "cp1") {

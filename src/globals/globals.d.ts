@@ -2,7 +2,10 @@
 // to understand unconventional modules
 declare module '*?text'
 declare module '*.jpg'
-declare module '*.png'
+declare module '*.png' {
+	const path: string
+	export default path
+}
 // Default constants exposed through `build.js`
 declare const DEVMODE: boolean
 declare const PRODUCT_NAME: string

@@ -1,8 +1,8 @@
 // Graph rendering module
 // Functions for drawing the value curve and speed curve on canvas elements
 
-import { cubicBezierToSpeed, sampleVelocityCurve } from "./conversions.js";
-import { GRAPH_COLORS } from "./constants.js";
+import { cubicBezierToSpeed, sampleVelocityCurve } from "./conversions.ts";
+import { GRAPH_COLORS } from "./constants.ts";
 import {
   getPlotBounds,
   getGridCellSize,
@@ -11,7 +11,7 @@ import {
   drawSquareGridByCellSize,
   addFillRect,
   getGridDivisions,
-} from "./graphGeometry.js";
+} from "./graphGeometry.ts";
 
 function addFilledPath(canvas, path, color) {
   var paint = { color: color, stroke: false };

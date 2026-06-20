@@ -38,7 +38,7 @@ export function getGridCellSize(bounds) {
   return bounds.plotSize / divisions;
 }
 
-export function getGridOverflowBounds(bounds, overflowCells) {
+export function getGridOverflowBounds(bounds, overflowCells?) {
   var cellSize = getGridCellSize(bounds);
   var overflow =
     cellSize *
